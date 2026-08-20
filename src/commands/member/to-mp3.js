@@ -32,7 +32,7 @@ async function extractAudio(videoPath) {
 export default {
   name: "to-mp3",
   description: "Converte vídeos para áudio MP3!",
-  commands: ["to-mp3", "video2mp3", "mp3"],
+  commands: ["to-mp3", "video2mp3"],
   usage: `${PREFIX}to-mp3 (envie em cima de um vídeo ou responda um vídeo)`,
 
   /**

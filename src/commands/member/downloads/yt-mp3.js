@@ -6,7 +6,7 @@ import { errorLog } from "../../../utils/logger.js";
 export default {
   name: "yt-mp3",
   description: "Faço o download de áudios do YouTube pelo link!",
-  commands: ["yt-mp3", "youtube-mp3", "yt-audio", "youtube-audio", "mp3"],
+  commands: ["yt-mp3", "youtube-mp3", "yt-audio", "youtube-audio"],
   usage: `${PREFIX}yt-mp3 https://www.youtube.com/watch?v=mW8o_WDL91o`,
   /**
    * @param {CommandHandleProps} props
