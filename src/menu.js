@@ -103,10 +103,7 @@ export function menuMessage(groupJid) {
 
 ╭━━⪩ DOWNLOADS ⪨━━
 ▢
-▢ • ${prefix}mp3
-▢ • ${prefix}mp4
-▢
-▢ • demais downloads EM MANUTENÇÃO
+downloads EM MANUTENÇÃO
 ▢
 ╰━━─「🎶」─━━
 
