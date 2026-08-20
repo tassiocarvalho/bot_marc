@@ -123,7 +123,6 @@ export function menuMessage(groupJid) {
 ╭━━⪩ CANVAS ⪨━━
 ▢
 ▢ • ${prefix}blur
-▢ • ${prefix}bolsonaro
 ▢ • ${prefix}cadeia
 ▢ • ${prefix}contraste
 ▢ • ${prefix}espelhar
