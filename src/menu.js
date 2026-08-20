@@ -70,6 +70,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}revelar
 ▢ • ${prefix}saldo
 ▢ • ${prefix}set-proxy
+▢ • ${prefix}statusgrupo
 ▢ • ${prefix}unmute
 ▢ • ${prefix}welcome (1/0)
 ▢
