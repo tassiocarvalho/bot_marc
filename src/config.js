@@ -77,6 +77,16 @@ export const LINKER_API_KEY = "seu_token_aqui";
 // Troque o <prefixo> pelo prefixo do bot (ex: /get-group-id).
 export const ONLY_GROUP_ID = "";
 
+// Numeros que podem usar o bot no privado (PV). Vazio = so grupo.
+// Use o numero completo com DDI e DDD, so digitos: "5511999999999".
+// Aceita a variavel de ambiente ALLOWED_PRIVATE_NUMBERS (separada por virgula).
+export const ALLOWED_PRIVATE_NUMBERS = (
+  process.env.ALLOWED_PRIVATE_NUMBERS || "5575991718010,5575983258635"
+)
+  .split(",")
+  .map((numero) => numero.replace(/[^0-9]/g, ""))
+  .filter(Boolean);
+
 // Configuração para modo de desenvolvimento
 // mude o valor para ( true ) sem os parênteses
 // caso queira ver os logs de mensagens recebidas

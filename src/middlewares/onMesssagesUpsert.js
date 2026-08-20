@@ -12,7 +12,9 @@ import {
   GROUP_PARTICIPANT_ADD,
   GROUP_PARTICIPANT_LEAVE,
   isAddOrLeave,
+  isAllowedPrivateChat,
   isAtLeastMinutesInPast,
+  isGroup,
 } from "../utils/index.js";
 import { loadCommonFunctions } from "../utils/loadCommonFunctions.js";
 import { errorLog, infoLog } from "../utils/logger.js";
@@ -40,7 +42,12 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
     }
 
     try {
-      if (!webMessage?.key?.remoteJid?.endsWith("@g.us")) {
+      const remoteJid = webMessage?.key?.remoteJid;
+      const emGrupo = !!remoteJid && isGroup(remoteJid);
+
+      // Fora de grupo o bot so responde aos numeros de ALLOWED_PRIVATE_NUMBERS.
+      // Lista vazia = nada passa no privado, que era o comportamento anterior.
+      if (!emGrupo && !isAllowedPrivateChat(webMessage?.key)) {
         continue;
       }
 
@@ -48,7 +55,9 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
 
       // Registra o envelope (id -> autor/estado) de TODA mensagem de grupo,
       // para corroborar marcações de pagamento e impedir forja (banir inocente).
-      recordMessageEnvelope(webMessage, hasPaymentMessage(webMessage));
+      if (emGrupo) {
+        recordMessageEnvelope(webMessage, hasPaymentMessage(webMessage));
+      }
 
       if (webMessage?.message) {
         messageHandler(socket, webMessage);
@@ -58,7 +67,7 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
         continue;
       }
 
-      if (isAddOrLeave.includes(webMessage.messageStubType)) {
+      if (emGrupo && isAddOrLeave.includes(webMessage.messageStubType)) {
         let action = "";
         if (webMessage.messageStubType === GROUP_PARTICIPANT_ADD) {
           action = "add";
@@ -85,6 +94,7 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
         return;
       }
       if (
+        emGrupo &&
         checkIfMemberIsMuted(
           webMessage?.key?.remoteJid,
           webMessage?.key?.participant?.replace(/:[0-9][0-9]|:[0-9]/g, ""),

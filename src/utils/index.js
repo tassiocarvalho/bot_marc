@@ -11,7 +11,13 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
-import { ASSETS_DIR, COMMANDS_DIR, PREFIX, TEMP_DIR } from "../config.js";
+import {
+  ALLOWED_PRIVATE_NUMBERS,
+  ASSETS_DIR,
+  COMMANDS_DIR,
+  PREFIX,
+  TEMP_DIR,
+} from "../config.js";
 import { errorLog } from "./logger.js";
 
 export function question(message) {
@@ -138,6 +144,34 @@ export function formatCommand(text) {
 
 export function isGroup(remoteJid) {
   return remoteJid.endsWith("@g.us");
+}
+
+/**
+ * Diz se a conversa privada vem de um numero liberado no config.
+ *
+ * No privado o remoteJid pode chegar como "<lid>@lid", que nao carrega o
+ * numero de telefone. Nesse caso o baileys manda o JID de telefone em
+ * remoteJidAlt, entao checamos os dois.
+ *
+ * @param {object} key webMessage.key
+ * @returns {boolean}
+ */
+export function isAllowedPrivateChat(key) {
+  if (!ALLOWED_PRIVATE_NUMBERS.length) {
+    return false;
+  }
+
+  const remoteJid = key?.remoteJid;
+
+  if (!remoteJid || isGroup(remoteJid)) {
+    return false;
+  }
+
+  return [remoteJid, key?.remoteJidAlt]
+    .filter(Boolean)
+    .some((jid) =>
+      ALLOWED_PRIVATE_NUMBERS.includes(onlyNumbers(String(jid).split("@")[0])),
+    );
 }
 
 export function onlyLettersAndNumbers(text) {
