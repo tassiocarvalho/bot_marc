@@ -6,12 +6,18 @@ export default {
   name: "promover",
   description: "Promove um usuário a administrador do grupo",
   commands: ["promover", "promove", "promote", "add-adm"],
-  usage: `${PREFIX}promover @usuario`,
+  usage: `${PREFIX}promover @usuario
+
+ou
+
+${PREFIX}promover (respondendo a mensagem do usuário)`,
   /**
    * @param {CommandHandleProps} props
    */
   handle: async ({
     args,
+    isReply,
+    replyLid,
     remoteJid,
     socket,
     sendWarningReply,
@@ -22,11 +28,18 @@ export default {
       return sendWarningReply("Este comando só pode ser usado em grupo !");
     }
 
-    if (!args.length || !args[0]) {
-      return sendWarningReply("Por favor, marque um usuário para promover.");
+    if (!args.length && !isReply) {
+      return sendWarningReply(
+        "Marque um usuário ou responda a mensagem dele para promover.",
+      );
     }
 
-    const userLid = args[0] ? `${onlyNumbers(args[0])}@lid` : null;
+    const mentionedLid = args[0] ? `${onlyNumbers(args[0])}@lid` : null;
+    const userLid = isReply ? replyLid : mentionedLid;
+
+    if (!userLid) {
+      return sendWarningReply("Não consegui identificar o usuário!");
+    }
 
     try {
       await socket.groupParticipantsUpdate(remoteJid, [userLid], "promote");
@@ -35,7 +48,7 @@ export default {
     } catch (error) {
       errorLog(`Erro ao promover usuário: ${error.message}`);
       await sendErrorReply(
-        "Ocorreu um erro ao tentar promover o usuário. Eu preciso ser administrador do grupo para promover outros usuários!"
+        "Ocorreu um erro ao tentar promover o usuário. Eu preciso ser administrador do grupo para promover outros usuários!",
       );
     }
   },
