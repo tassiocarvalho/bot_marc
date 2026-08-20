@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BOT_EMOJI, BOT_NAME, PREFIX, TEMP_DIR } from "../../config.js";
+import { BOT_EMOJI, PREFIX, STICKER_AUTHOR, TEMP_DIR } from "../../config.js";
 import { InvalidParameterError } from "../../errors/index.js";
 import { abrat } from "../../services/spider-x-api.js";
 import { processAnimatedGifToSticker } from "../../services/sticker.js";
@@ -60,7 +60,7 @@ export default {
 
       const metadata = {
         username,
-        botName: `${BOT_EMOJI} ${BOT_NAME}`,
+        botName: `${BOT_EMOJI} ${STICKER_AUTHOR}`,
       };
 
       finalStickerPath = await processAnimatedGifToSticker(inputPath, metadata);

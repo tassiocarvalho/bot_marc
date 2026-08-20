@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BOT_EMOJI, BOT_NAME, PREFIX, TEMP_DIR } from "../../config.js";
+import { BOT_EMOJI, PREFIX, STICKER_AUTHOR, TEMP_DIR } from "../../config.js";
 import { InvalidParameterError } from "../../errors/index.js";
 import { Ffmpeg } from "../../services/ffmpeg.js";
 import { removeBg } from "../../services/spider-x-api.js";
@@ -76,7 +76,7 @@ export default {
 
       finalStickerPath = await processStaticSticker(removeBgPath, {
         username: getUserName(webMessage, userLid),
-        botName: `${BOT_EMOJI} ${BOT_NAME}`,
+        botName: `${BOT_EMOJI} ${STICKER_AUTHOR}`,
       });
 
       await sendSuccessReact();

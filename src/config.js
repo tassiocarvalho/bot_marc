@@ -13,6 +13,9 @@ export const BOT_EMOJI = "🤖";
 // Nome do bot (mude se preferir).
 export const BOT_NAME = "bot_marc";
 
+// Nome usado como autor/publisher das figurinhas.
+export const STICKER_AUTHOR = "bot_marc_tassio";
+
 // LID do bot (no caso, o que você rodará o bot).
 // Para obter o LID do bot, use o comando <prefixo>lid respondendo em cima de uma mensagem do número do bot
 // Troque o <prefixo> pelo prefixo do bot (ex: /lid).
