@@ -59,9 +59,19 @@ export function warningLog(message) {
   console.log("\x1b[33m[BOT_MARC | WARNING]\x1b[0m", message);
 }
 
+const BANNER = [
+  '    ____  ____  ______   __  ___               ',
+  '   / __ )/ __ \\/_  __/  /  |/  /___ ___________',
+  '  / __  / / / / / /    / /|_/ / __ `/ ___/ ___/',
+  ' / /_/ / /_/ / / /    / /  / / /_/ / /  / /__  ',
+  '/_____/\\____/ /_/____/_/  /_/\\__,_/_/   \\___/  ',
+  '               /_____/',
+];
+
 export function bannerLog() {
-  console.log(`\x1b[36m░▀█▀░█▀█░█░█░█▀▀░█▀▀░█░█░▀█▀░░█▀▄░█▀█░▀█▀\x1b[0m`);
-  console.log(`░░█░░█▀█░█▀▄░█▀▀░▀▀█░█▀█░░█░░░█▀▄░█░█░░█░`);
-  console.log(`\x1b[36m░░▀░░▀░▀░▀░▀░▀▀▀░▀▀▀░▀░▀░▀▀▀░░▀▀░░▀▀▀░░▀░\x1b[0m`);
+  for (const line of BANNER) {
+    console.log(`\x1b[36m${line}\x1b[0m`);
+  }
+
   console.log(`\x1b[36m🤖 Versão: \x1b[0m${pkg.version}\n`);
 }
