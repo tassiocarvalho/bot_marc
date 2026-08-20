@@ -9,7 +9,11 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { TEMP_DIR } from "../config.js";
+import {
+  TEMP_DIR,
+  YTDLP_COOKIES_FILE,
+  YTDLP_PROXY,
+} from "../config.js";
 import { getRandomName } from "../utils/index.js";
 import { errorLog } from "../utils/logger.js";
 
@@ -51,6 +55,15 @@ function runYtDlp(args) {
             return;
           }
 
+          if (details.includes("confirm you") && details.includes("bot")) {
+            reject(
+              new Error(
+                "O YouTube bloqueou este servidor. Configure YTDLP_COOKIES_FILE ou YTDLP_PROXY no config.js.",
+              ),
+            );
+            return;
+          }
+
           reject(new Error("Não consegui baixar esse conteúdo do YouTube."));
           return;
         }
@@ -59,6 +72,34 @@ function runYtDlp(args) {
       },
     );
   });
+}
+
+/**
+ * Monta os argumentos de autenticacao/rede do yt-dlp.
+ *
+ * Sao necessarios quando o bot roda em nuvem: o YouTube bloqueia IPs de
+ * datacenter e exige cookies de uma sessao logada ou um proxy residencial.
+ *
+ * @returns {string[]}
+ */
+function buildAuthArgs() {
+  const args = [];
+
+  if (YTDLP_COOKIES_FILE) {
+    if (fs.existsSync(YTDLP_COOKIES_FILE)) {
+      args.push("--cookies", YTDLP_COOKIES_FILE);
+    } else {
+      errorLog(
+        `YTDLP_COOKIES_FILE aponta para um arquivo inexistente: ${YTDLP_COOKIES_FILE}`,
+      );
+    }
+  }
+
+  if (YTDLP_PROXY) {
+    args.push("--proxy", YTDLP_PROXY);
+  }
+
+  return args;
 }
 
 /**
@@ -77,6 +118,7 @@ export async function searchOnYouTube(query) {
   ].join(SEPARATOR);
 
   const output = await runYtDlp([
+    ...buildAuthArgs(),
     "--no-playlist",
     "--no-warnings",
     "--skip-download",
@@ -154,7 +196,7 @@ export async function downloadFromYouTube({ url, type }) {
         VIDEO_MAX_FILESIZE,
       ];
 
-  await runYtDlp([...commonArgs, ...formatArgs, url]);
+  await runYtDlp([...buildAuthArgs(), ...commonArgs, ...formatArgs, url]);
 
   if (!fs.existsSync(outputPath)) {
     throw new Error(

@@ -44,6 +44,16 @@ export const TIMEOUT_IN_MILLISECONDS_BY_EVENT = 500;
 // Duracao maxima (em minutos) aceita nos comandos de download.
 export const MAX_DOWNLOAD_DURATION_IN_MINUTES = 12;
 
+// Caminho de um arquivo cookies.txt para o yt-dlp.
+// Necessario quando o bot roda em VPS/nuvem (AWS, GCP, Azure), porque o
+// YouTube bloqueia IPs de datacenter com "Sign in to confirm you are not a bot".
+// Deixe vazio para nao usar cookies.
+export const YTDLP_COOKIES_FILE = "";
+
+// Proxy opcional para o yt-dlp (ex: "http://usuario:senha@host:porta").
+// Deixe vazio para nao usar proxy.
+export const YTDLP_PROXY = "";
+
 // Plataforma de API's
 export const SPIDER_API_BASE_URL = "https://api.spiderx.com.br/api";
 
