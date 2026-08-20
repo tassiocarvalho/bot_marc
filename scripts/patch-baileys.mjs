@@ -587,6 +587,17 @@ const patchSocket = () => {
         'generateParticipantHashV2, generateWAMessage, getContentType, getStatusCodeForMediaRetry'
     );
 
+    // getMediaType so inspeciona o topo da mensagem. Num status de grupo o topo
+    // e o embrulho groupStatusMessageV2, entao ele devolvia undefined e a stanza
+    // seguia sem o atributo mediatype: texto passava, imagem e video nao. O
+    // normalizeMessageContent desembrulha antes, que e o que o fork ja faz.
+    contents = replaceRequired(
+        contents,
+        'const mediaType = getMediaType(message);',
+        'const mediaType = getMediaType(normalizeMessageContent(message) || message);',
+        filePath
+    );
+
     contents = insertAfter(
         contents,
         '    const messageRetryManager = enableRecentMessageCache ? new MessageRetryManager(logger, maxMsgRetryCount) : null;',
