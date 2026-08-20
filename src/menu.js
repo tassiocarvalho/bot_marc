@@ -103,16 +103,7 @@ export function menuMessage(groupJid) {
 
 ╭━━⪩ DOWNLOADS ⪨━━
 ▢
-▢ • ${prefix}facebook
-▢ • ${prefix}instagram
-▢ • ${prefix}play-audio
-▢ • ${prefix}play-video
-▢ • ${prefix}pinterest
-▢ • ${prefix}tik-tok
-▢ • ${prefix}tik-tok-audio
-▢ • ${prefix}xtwitter
-▢ • ${prefix}yt-mp3
-▢ • ${prefix}yt-mp4
+▢ • EM MANUNTEÇÃO
 ▢
 ╰━━─「🎶」─━━
 
@@ -128,17 +119,6 @@ export function menuMessage(groupJid) {
 ▢
 ╰━━─「🎡」─━━
 
-╭━━⪩ IA ⪨━━
-▢
-▢ • ${prefix}deepseek
-▢ • ${prefix}flux
-▢ • ${prefix}gemini
-▢ • ${prefix}gpt-5-mini
-▢ • ${prefix}ia-sticker
-▢ • ${prefix}transcrever
-▢ • ${prefix}tts
-▢
-╰━━─「🚀」─━━
 
 ╭━━⪩ CANVAS ⪨━━
 ▢
