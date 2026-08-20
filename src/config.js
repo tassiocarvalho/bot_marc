@@ -81,7 +81,7 @@ export const ONLY_GROUP_ID = "";
 // Use o numero completo com DDI e DDD, so digitos: "5511999999999".
 // Aceita a variavel de ambiente ALLOWED_PRIVATE_NUMBERS (separada por virgula).
 export const ALLOWED_PRIVATE_NUMBERS = (
-  process.env.ALLOWED_PRIVATE_NUMBERS || "5575983258635"
+  process.env.ALLOWED_PRIVATE_NUMBERS || "5575983258635,5575920019830"
 )
   .split(",")
   .map((numero) => numero.replace(/[^0-9]/g, ""))
