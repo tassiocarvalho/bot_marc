@@ -147,11 +147,43 @@ export function isGroup(remoteJid) {
 }
 
 /**
+ * Gera as formas equivalentes de um numero brasileiro: com e sem o nono
+ * digito. Contas antigas aparecem no JID sem ele (5575983258635 chega como
+ * 557583258635). Numero de outro pais volta como esta.
+ *
+ * @param {string} numero
+ * @returns {string[]}
+ */
+export function numberVariants(numero) {
+  const limpo = onlyNumbers(String(numero || ""));
+
+  if (!limpo) {
+    return [];
+  }
+
+  const variantes = new Set([limpo]);
+
+  if (limpo.startsWith("55")) {
+    // 55 + DDD(2) + 9 + 8 digitos
+    if (limpo.length === 13 && limpo[4] === "9") {
+      variantes.add(limpo.slice(0, 4) + limpo.slice(5));
+    }
+
+    // 55 + DDD(2) + 8 digitos
+    if (limpo.length === 12) {
+      variantes.add(`${limpo.slice(0, 4)}9${limpo.slice(4)}`);
+    }
+  }
+
+  return [...variantes];
+}
+
+/**
  * Diz se a conversa privada vem de um numero liberado no config.
  *
  * No privado o remoteJid pode chegar como "<lid>@lid", que nao carrega o
  * numero de telefone. Nesse caso o baileys manda o JID de telefone em
- * remoteJidAlt, entao checamos os dois.
+ * remoteJidAlt, entao checamos os dois -- e nas duas formas do nono digito.
  *
  * @param {object} key webMessage.key
  * @returns {boolean}
@@ -167,11 +199,12 @@ export function isAllowedPrivateChat(key) {
     return false;
   }
 
+  const permitidos = new Set(ALLOWED_PRIVATE_NUMBERS.flatMap(numberVariants));
+
   return [remoteJid, key?.remoteJidAlt]
     .filter(Boolean)
-    .some((jid) =>
-      ALLOWED_PRIVATE_NUMBERS.includes(onlyNumbers(String(jid).split("@")[0])),
-    );
+    .flatMap((jid) => numberVariants(String(jid).split("@")[0]))
+    .some((numero) => permitidos.has(numero));
 }
 
 export function onlyLettersAndNumbers(text) {

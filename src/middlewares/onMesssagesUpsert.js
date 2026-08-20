@@ -25,6 +25,8 @@ import { hasPaymentMessage } from "../utils/paymentMessage.js";
 import { handleAfkReferences } from "./afkHandler.js";
 import { onGroupParticipantsUpdate } from "./onGroupParticipantsUpdate.js";
 
+const privadosBloqueados = new Set();
+
 export async function onMessagesUpsert({ socket, messages, startProcess }) {
   if (!messages.length) {
     return;
@@ -48,6 +50,17 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
       // Fora de grupo o bot so responde aos numeros de ALLOWED_PRIVATE_NUMBERS.
       // Lista vazia = nada passa no privado, que era o comportamento anterior.
       if (!emGrupo && !isAllowedPrivateChat(webMessage?.key)) {
+        // Loga uma vez por JID: sem isso, quando o allowlist nao casa nao ha
+        // como saber qual identificador o WhatsApp realmente mandou.
+        if (!privadosBloqueados.has(remoteJid)) {
+          privadosBloqueados.add(remoteJid);
+          infoLog(
+            `Mensagem privada bloqueada. remoteJid="${remoteJid}" remoteJidAlt="${
+              webMessage?.key?.remoteJidAlt || "(nenhum)"
+            }" — para liberar, adicione em ALLOWED_PRIVATE_NUMBERS.`,
+          );
+        }
+
         continue;
       }
 
