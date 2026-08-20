@@ -139,9 +139,17 @@ export async function downloadFromYouTube({ url, type }) {
       ]
     : [
         "--format",
-        `bv*[ext=mp4][height<=${VIDEO_MAX_HEIGHT}]+ba[ext=m4a]/b[ext=mp4][height<=${VIDEO_MAX_HEIGHT}]/b[height<=${VIDEO_MAX_HEIGHT}]/b`,
+        [
+          `bv*[vcodec^=avc1][height<=${VIDEO_MAX_HEIGHT}]+ba[acodec^=mp4a]`,
+          `b[vcodec^=avc1][height<=${VIDEO_MAX_HEIGHT}]`,
+          `bv*[height<=${VIDEO_MAX_HEIGHT}]+ba`,
+          `b[height<=${VIDEO_MAX_HEIGHT}]`,
+          "b",
+        ].join("/"),
         "--merge-output-format",
         "mp4",
+        "--postprocessor-args",
+        "ffmpeg:-movflags +faststart",
         "--max-filesize",
         VIDEO_MAX_FILESIZE,
       ];

@@ -3,7 +3,10 @@
  *
  * @author bot_marc
  */
-import { PREFIX } from "../../../config.js";
+import {
+  MAX_DOWNLOAD_DURATION_IN_MINUTES,
+  PREFIX,
+} from "../../../config.js";
 import { InvalidParameterError, WarningError } from "../../../errors/index.js";
 import {
   downloadFromYouTube,
@@ -41,6 +44,14 @@ export default {
 
     if (!data) {
       throw new WarningError("Não encontrei nada com esse nome!");
+    }
+
+    if (data.durationInSeconds > MAX_DOWNLOAD_DURATION_IN_MINUTES * 60) {
+      throw new WarningError(
+        `Só baixo conteúdo de até ${MAX_DOWNLOAD_DURATION_IN_MINUTES} minutos! Esse tem ${formatSecondsToMinutesAndSeconds(
+          data.durationInSeconds,
+        )}.`,
+      );
     }
 
     let filePath = null;

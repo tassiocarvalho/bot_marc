@@ -41,6 +41,9 @@ export const TEMP_DIR = path.resolve(__dirname, "..", "assets", "temp");
 // Timeout em milissegundos por evento (evita banimento).
 export const TIMEOUT_IN_MILLISECONDS_BY_EVENT = 500;
 
+// Duracao maxima (em minutos) aceita nos comandos de download.
+export const MAX_DOWNLOAD_DURATION_IN_MINUTES = 12;
+
 // Plataforma de API's
 export const SPIDER_API_BASE_URL = "https://api.spiderx.com.br/api";
 
