@@ -1,6 +1,6 @@
 # 🤖 bot_marc
 
-![bot_marc](./assets/images/bot_marc.png)
+
 
 Bot de WhatsApp multifunções em Node.js, construído sobre a biblioteca
 [Baileys](https://github.com/WhiskeySockets/Baileys).
