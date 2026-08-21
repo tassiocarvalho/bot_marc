@@ -78,27 +78,18 @@ export function menuMessage(groupJid) {
 
 ╭━━⪩ PRINCIPAL ⪨━━
 ▢
-▢ • ${prefix}attp
-▢ • ${prefix}brat
-▢ • ${prefix}bratvid
 ▢ • ${prefix}cep
 ▢ • ${prefix}exemplos-de-mensagens
 ▢ • ${prefix}fake-chat
-▢ • ${prefix}gerar-link
 ▢ • ${prefix}info
 ▢ • ${prefix}meu-lid
 ▢ • ${prefix}perfil
 ▢ • ${prefix}ping
 ▢ • ${prefix}raw-message
 ▢ • ${prefix}rename
-▢ • ${prefix}removebg
 ▢ • ${prefix}sticker
-▢ • ${prefix}suporte
-▢ • ${prefix}to-gif
 ▢ • ${prefix}to-image
 ▢ • ${prefix}to-mp3
-▢ • ${prefix}ttp
-▢ • ${prefix}yt-search
 ▢
 ╰━━─「🚀」─━━
 
@@ -124,13 +115,10 @@ downloads EM MANUTENÇÃO
 ╭━━⪩ CANVAS ⪨━━
 ▢
 ▢ • ${prefix}blur
-▢ • ${prefix}cadeia
 ▢ • ${prefix}contraste
 ▢ • ${prefix}espelhar
 ▢ • ${prefix}gray
-▢ • ${prefix}inverter
 ▢ • ${prefix}pixel
-▢ • ${prefix}rip
 ▢
 ╰━━─「❇」─━━`;
 }
