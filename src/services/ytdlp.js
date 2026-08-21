@@ -25,6 +25,28 @@ const AUDIO_MAX_FILESIZE = "16M";
 const VIDEO_MAX_FILESIZE = "64M";
 const VIDEO_MAX_HEIGHT = 480;
 
+// O YouTube quebra de tempos em tempos o "player client" que o yt-dlp usa por
+// padrao: a extracao continua respondendo (titulo e duracao vem normal), mas a
+// URL da midia devolve 403 na hora de baixar. Qual cliente funciona muda a cada
+// mudanca deles, entao em vez de fixar um, tentamos em ordem e deixamos o
+// padrao por ultimo -- ele volta a ser o melhor assim que o upstream conserta.
+const YOUTUBE_CLIENTS = [null, "web_safari,mweb"];
+
+// So vale trocar de cliente se o erro for do tipo que trocar resolve. Video
+// privado, removido ou falta de rede falha igual em todos.
+const isClientError = (details) =>
+  /\b403\b|Forbidden|Requested format is not available|needs to be reloaded|Sign in to confirm|player response|nsig|Failed to extract/i.test(
+    details,
+  );
+
+function buildError(message, details) {
+  const error = new Error(message);
+
+  error.details = details;
+
+  return error;
+}
+
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -43,28 +65,37 @@ function runYtDlp(args) {
 
           if (error.code === "ENOENT") {
             reject(
-              new Error(
+              buildError(
                 "O yt-dlp não está instalado ou não está no PATH do sistema.",
+                details,
               ),
             );
             return;
           }
 
           if (error.killed) {
-            reject(new Error("O download demorou demais e foi cancelado."));
+            reject(
+              buildError("O download demorou demais e foi cancelado.", details),
+            );
             return;
           }
 
           if (details.includes("confirm you") && details.includes("bot")) {
             reject(
-              new Error(
+              buildError(
                 "O YouTube bloqueou este servidor. Configure YTDLP_COOKIES_FILE ou YTDLP_PROXY no config.js.",
+                details,
               ),
             );
             return;
           }
 
-          reject(new Error("Não consegui baixar esse conteúdo do YouTube."));
+          reject(
+            buildError(
+              "Não consegui baixar esse conteúdo do YouTube.",
+              details,
+            ),
+          );
           return;
         }
 
@@ -72,6 +103,59 @@ function runYtDlp(args) {
       },
     );
   });
+}
+
+/**
+ * Roda o yt-dlp tentando cada player_client da lista ate um dar certo.
+ *
+ * O yt-dlp sai com codigo 0 mesmo quando aborta por --max-filesize, entao
+ * codigo de saida sozinho nao prova sucesso: quem chama passa `validate` para
+ * conferir se o arquivo esperado realmente apareceu.
+ *
+ * @param {string[]} args
+ * @param {{beforeRetry?: () => void, validate?: () => boolean}} [hooks]
+ */
+async function runYtDlpWithFallback(args, hooks = {}) {
+  const { beforeRetry, validate } = hooks;
+
+  let lastError;
+
+  for (const client of YOUTUBE_CLIENTS) {
+    const clientArgs = client
+      ? ["--extractor-args", `youtube:player_client=${client}`]
+      : [];
+
+    try {
+      const output = await runYtDlp([...clientArgs, ...args]);
+
+      if (!validate || validate()) {
+        return output;
+      }
+
+      lastError = buildError(
+        "O yt-dlp terminou sem gerar o arquivo esperado.",
+        "saida vazia",
+      );
+
+      errorLog(
+        `yt-dlp nao gerou arquivo com player_client=${client || "padrão"}.`,
+      );
+    } catch (error) {
+      lastError = error;
+
+      if (!isClientError(error.details || "")) {
+        throw error;
+      }
+
+      errorLog(
+        `yt-dlp falhou com player_client=${client || "padrão"}, tentando o proximo.`,
+      );
+    }
+
+    beforeRetry?.();
+  }
+
+  throw lastError;
 }
 
 /**
@@ -117,9 +201,10 @@ export async function searchOnYouTube(query) {
     "%(thumbnail)s",
   ].join(SEPARATOR);
 
-  const output = await runYtDlp([
+  const output = await runYtDlpWithFallback([
     ...buildAuthArgs(),
     "--no-playlist",
+    "--force-ipv4",
     "--no-warnings",
     "--skip-download",
     "--print",
@@ -162,6 +247,7 @@ export async function downloadFromYouTube({ url, type }) {
 
   const commonArgs = [
     "--no-playlist",
+    "--force-ipv4",
     "--no-warnings",
     "--no-progress",
     "--quiet",
@@ -171,13 +257,13 @@ export async function downloadFromYouTube({ url, type }) {
 
   const formatArgs = isAudio
     ? [
+        "--format",
+        "bestaudio[ext=m4a]/bestaudio/best",
         "--extract-audio",
         "--audio-format",
         "mp3",
         "--audio-quality",
         "5",
-        "--max-filesize",
-        AUDIO_MAX_FILESIZE,
       ]
     : [
         "--format",
@@ -196,8 +282,29 @@ export async function downloadFromYouTube({ url, type }) {
         VIDEO_MAX_FILESIZE,
       ];
 
-  await runYtDlp([...buildAuthArgs(), ...commonArgs, ...formatArgs, url]);
+  // Uma tentativa que falhou deixa .part e afins com o mesmo nome-base; sem
+  // limpar, o yt-dlp da tentativa seguinte acha que ja baixou.
+  const limparParciais = () => {
+    try {
+      const base = path.basename(basePath);
 
+      for (const arquivo of fs.readdirSync(TEMP_DIR)) {
+        if (arquivo.startsWith(`${base}.`)) {
+          fs.unlinkSync(path.join(TEMP_DIR, arquivo));
+        }
+      }
+    } catch {
+      // limpeza best-effort: se falhar, a proxima tentativa e que sofre
+    }
+  };
+
+  await runYtDlpWithFallback(
+    [...buildAuthArgs(), ...commonArgs, ...formatArgs, url],
+    {
+      beforeRetry: limparParciais,
+      validate: () => fs.existsSync(outputPath),
+    },
+  );
   if (!fs.existsSync(outputPath)) {
     throw new Error(
       isAudio
