@@ -30,6 +30,7 @@ const RESTRICTED_MESSAGES_FILE = "restricted-messages";
 const WELCOME_GROUPS_FILE = "welcome-groups";
 const TIC_TAC_TOE_FILE = "tic-tac-toe-ranking";
 const RPS_FILE = "rps-ranking";
+const CHECKERS_FILE = "checkers-ranking";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -593,4 +594,12 @@ export function addRpsResult(groupId, { winner, loser }) {
 
 export function getRpsRanking(groupId) {
   return getRankingFrom(RPS_FILE, groupId);
+}
+
+export function addCheckersResult(groupId, result) {
+  addMatchResult(CHECKERS_FILE, groupId, result);
+}
+
+export function getCheckersRanking(groupId) {
+  return getRankingFrom(CHECKERS_FILE, groupId);
 }

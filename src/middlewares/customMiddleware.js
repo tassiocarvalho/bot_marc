@@ -13,6 +13,12 @@
  *
  * @author bot_marc
  */
+import {
+  getGame as getCheckersGame,
+  looksLikeMove,
+  playMove as playCheckersMove,
+  withPrefix as withCheckersPrefix,
+} from "../services/checkers.js";
 import { playVsBotInGroup } from "../services/rock-paper-scissors.js";
 import { getGame, playMove, withPrefix } from "../services/tic-tac-toe.js";
 import { isActiveGroup } from "../utils/database.js";
@@ -28,6 +34,7 @@ export async function customMiddleware({
   if (type === "message" && commonFunctions) {
     await handleTicTacToeMove(commonFunctions);
     await handleRpsVsBotChoice(commonFunctions);
+    await handleCheckersMove(commonFunctions);
   }
 }
 
@@ -87,4 +94,35 @@ async function handleRpsVsBotChoice({
   if (answer) {
     await sendReply(answer);
   }
+}
+
+/**
+ * Damas: o jogador da vez manda o número da jogada (ou "c3 d4").
+ */
+async function handleCheckersMove({
+  fullMessage,
+  isGroup,
+  prefix,
+  remoteJid,
+  sendReply,
+  userLid,
+}) {
+  if (!isGroup || !looksLikeMove(fullMessage) || !getCheckersGame(remoteJid)) {
+    return;
+  }
+
+  if (!isActiveGroup(remoteJid)) {
+    return;
+  }
+
+  const result = playCheckersMove(remoteJid, userLid, fullMessage);
+
+  if (!result) {
+    return;
+  }
+
+  await sendReply(
+    withCheckersPrefix(result.error || result.text, prefix),
+    result.mentions
+  );
 }

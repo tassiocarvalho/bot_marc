@@ -104,6 +104,7 @@ downloads EM MANUTENÇÃO
 ▢ • ${prefix}abracar
 ▢ • ${prefix}beijar
 ▢ • ${prefix}dado
+▢ • ${prefix}dama ♟️
 ▢ • ${prefix}jantar
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
