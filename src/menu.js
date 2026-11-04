@@ -108,6 +108,7 @@ downloads EM MANUTENÇÃO
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
 ▢ • ${prefix}socar
+▢ • ${prefix}velha ❌⭕
 ▢
 ╰━━─「🎡」─━━
 

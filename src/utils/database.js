@@ -28,6 +28,7 @@ const ONLY_ADMINS_FILE = "only-admins";
 const PREFIX_GROUPS_FILE = "prefix-groups";
 const RESTRICTED_MESSAGES_FILE = "restricted-messages";
 const WELCOME_GROUPS_FILE = "welcome-groups";
+const TIC_TAC_TOE_FILE = "tic-tac-toe-ranking";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -536,4 +537,43 @@ export function getSpiderApiToken() {
   const config = readJSON(filename, {});
 
   return config.spider_api_token || SPIDER_API_TOKEN;
+}
+
+export function addTicTacToeResult(groupId, { winner, loser, players }) {
+  const ranking = readJSON(TIC_TAC_TOE_FILE, {});
+
+  if (!ranking[groupId]) {
+    ranking[groupId] = {};
+  }
+
+  const group = ranking[groupId];
+
+  for (const player of players) {
+    if (!group[player]) {
+      group[player] = { wins: 0, losses: 0, draws: 0 };
+    }
+  }
+
+  if (winner && loser) {
+    group[winner].wins += 1;
+    group[loser].losses += 1;
+  } else {
+    for (const player of players) {
+      group[player].draws += 1;
+    }
+  }
+
+  writeJSON(TIC_TAC_TOE_FILE, ranking, {});
+}
+
+export function getTicTacToeRanking(groupId) {
+  const ranking = readJSON(TIC_TAC_TOE_FILE, {});
+
+  return Object.entries(ranking[groupId] || {})
+    .map(([player, stats]) => ({
+      player,
+      ...stats,
+      points: stats.wins * 3 + stats.draws,
+    }))
+    .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses);
 }
