@@ -29,6 +29,7 @@ const PREFIX_GROUPS_FILE = "prefix-groups";
 const RESTRICTED_MESSAGES_FILE = "restricted-messages";
 const WELCOME_GROUPS_FILE = "welcome-groups";
 const TIC_TAC_TOE_FILE = "tic-tac-toe-ranking";
+const RPS_FILE = "rps-ranking";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -539,8 +540,12 @@ export function getSpiderApiToken() {
   return config.spider_api_token || SPIDER_API_TOKEN;
 }
 
-export function addTicTacToeResult(groupId, { winner, loser, players }) {
-  const ranking = readJSON(TIC_TAC_TOE_FILE, {});
+export function addTicTacToeResult(groupId, result) {
+  addMatchResult(TIC_TAC_TOE_FILE, groupId, result);
+}
+
+function addMatchResult(file, groupId, { winner, loser, players }) {
+  const ranking = readJSON(file, {});
 
   if (!ranking[groupId]) {
     ranking[groupId] = {};
@@ -563,11 +568,15 @@ export function addTicTacToeResult(groupId, { winner, loser, players }) {
     }
   }
 
-  writeJSON(TIC_TAC_TOE_FILE, ranking, {});
+  writeJSON(file, ranking, {});
 }
 
 export function getTicTacToeRanking(groupId) {
-  const ranking = readJSON(TIC_TAC_TOE_FILE, {});
+  return getRankingFrom(TIC_TAC_TOE_FILE, groupId);
+}
+
+function getRankingFrom(file, groupId) {
+  const ranking = readJSON(file, {});
 
   return Object.entries(ranking[groupId] || {})
     .map(([player, stats]) => ({
@@ -576,4 +585,12 @@ export function getTicTacToeRanking(groupId) {
       points: stats.wins * 3 + stats.draws,
     }))
     .sort((a, b) => b.points - a.points || b.wins - a.wins || a.losses - b.losses);
+}
+
+export function addRpsResult(groupId, { winner, loser }) {
+  addMatchResult(RPS_FILE, groupId, { winner, loser, players: [winner, loser] });
+}
+
+export function getRpsRanking(groupId) {
+  return getRankingFrom(RPS_FILE, groupId);
 }

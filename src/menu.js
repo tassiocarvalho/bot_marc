@@ -107,6 +107,7 @@ downloads EM MANUTENÇÃO
 ▢ • ${prefix}jantar
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
+▢ • ${prefix}ppt ✊✋✌️
 ▢ • ${prefix}socar
 ▢ • ${prefix}velha ❌⭕
 ▢

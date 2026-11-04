@@ -18,6 +18,7 @@ import {
 } from "../utils/index.js";
 import { loadCommonFunctions } from "../utils/loadCommonFunctions.js";
 import { errorLog, infoLog } from "../utils/logger.js";
+import { handleRpsPrivateMessage } from "../services/rock-paper-scissors.js";
 import { customMiddleware } from "./customMiddleware.js";
 import { messageHandler } from "./messageHandler.js";
 import { recordMessageEnvelope } from "../utils/messageEnvelopeRegistry.js";
@@ -46,6 +47,12 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
     try {
       const remoteJid = webMessage?.key?.remoteJid;
       const emGrupo = !!remoteJid && isGroup(remoteJid);
+
+      // Jokenpo: a escolha secreta chega no privado e e aceita mesmo de
+      // numeros fora do allowlist, mas so de quem esta numa partida.
+      if (!emGrupo && (await handleRpsPrivateMessage(socket, webMessage))) {
+        continue;
+      }
 
       // Fora de grupo o bot so responde aos numeros de ALLOWED_PRIVATE_NUMBERS.
       // Lista vazia = nada passa no privado, que era o comportamento anterior.

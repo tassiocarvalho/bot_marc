@@ -13,6 +13,7 @@
  *
  * @author bot_marc
  */
+import { playVsBotInGroup } from "../services/rock-paper-scissors.js";
 import { getGame, playMove, withPrefix } from "../services/tic-tac-toe.js";
 import { isActiveGroup } from "../utils/database.js";
 
@@ -26,6 +27,7 @@ export async function customMiddleware({
 }) {
   if (type === "message" && commonFunctions) {
     await handleTicTacToeMove(commonFunctions);
+    await handleRpsVsBotChoice(commonFunctions);
   }
 }
 
@@ -60,4 +62,29 @@ async function handleTicTacToeMove({
     withPrefix(result.error || result.text, prefix),
     result.mentions
   );
+}
+
+/**
+ * Jokenpô contra o bot: o jogador escolhe direto no grupo.
+ */
+async function handleRpsVsBotChoice({
+  fullMessage,
+  isGroup,
+  remoteJid,
+  sendReply,
+  userLid,
+}) {
+  if (!isGroup || !fullMessage || fullMessage.length > 12) {
+    return;
+  }
+
+  if (!isActiveGroup(remoteJid)) {
+    return;
+  }
+
+  const answer = await playVsBotInGroup(remoteJid, userLid, fullMessage);
+
+  if (answer) {
+    await sendReply(answer);
+  }
 }
