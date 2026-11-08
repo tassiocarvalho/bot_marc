@@ -1,5 +1,5 @@
 /**
- * Busca no YouTube e devolve o vídeo em mp4.
+ * Encontra no YouTube (por nome ou link) e devolve o vídeo em mp4.
  *
  * @author bot_marc
  */
@@ -10,7 +10,7 @@ import {
 import { InvalidParameterError, WarningError } from "../../../errors/index.js";
 import {
   downloadFromYouTube,
-  searchOnYouTube,
+  findOnYouTube,
 } from "../../../services/ytdlp.js";
 import {
   formatSecondsToMinutesAndSeconds,
@@ -19,9 +19,17 @@ import {
 
 export default {
   name: "mp4",
-  description: "Busco o vídeo no YouTube e envio o mp4",
-  commands: ["mp4"],
-  usage: `${PREFIX}mp4 Sweet Child O Mine`,
+  description: "Busco o vídeo no YouTube, por nome ou link, e envio o mp4",
+  commands: [
+    "mp4",
+    "play-video",
+    "pv",
+    "yt-mp4",
+    "youtube-mp4",
+    "yt-video",
+    "youtube-video",
+  ],
+  usage: `${PREFIX}play-video Billie Jean`,
   /**
    * @param {CommandHandleProps} props
    */
@@ -34,13 +42,13 @@ export default {
   }) => {
     if (!fullArgs.length) {
       throw new InvalidParameterError(
-        "Você precisa me dizer o nome do vídeo!",
+        "Você precisa me dizer o nome do vídeo ou enviar um link do YouTube!",
       );
     }
 
     await sendWaitReact();
 
-    const data = await searchOnYouTube(fullArgs);
+    const data = await findOnYouTube(fullArgs);
 
     if (!data) {
       throw new WarningError("Não encontrei nada com esse nome!");

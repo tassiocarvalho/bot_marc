@@ -1,5 +1,5 @@
 /**
- * Busca no YouTube e devolve o áudio em mp3.
+ * Encontra no YouTube (por nome ou link) e devolve o áudio em mp3.
  *
  * @author bot_marc
  */
@@ -10,7 +10,7 @@ import {
 import { InvalidParameterError, WarningError } from "../../../errors/index.js";
 import {
   downloadFromYouTube,
-  searchOnYouTube,
+  findOnYouTube,
 } from "../../../services/ytdlp.js";
 import {
   formatSecondsToMinutesAndSeconds,
@@ -19,9 +19,18 @@ import {
 
 export default {
   name: "mp3",
-  description: "Busco a música no YouTube e envio o mp3",
-  commands: ["mp3"],
-  usage: `${PREFIX}mp3 Sweet Child O Mine`,
+  description: "Busco a música no YouTube, por nome ou link, e envio o mp3",
+  commands: [
+    "mp3",
+    "play",
+    "play-audio",
+    "pa",
+    "yt-mp3",
+    "youtube-mp3",
+    "yt-audio",
+    "youtube-audio",
+  ],
+  usage: `${PREFIX}play Billie Jean`,
   /**
    * @param {CommandHandleProps} props
    */
@@ -36,13 +45,13 @@ export default {
   }) => {
     if (!fullArgs.length) {
       throw new InvalidParameterError(
-        "Você precisa me dizer o nome da música!",
+        "Você precisa me dizer o nome da música ou enviar um link do YouTube!",
       );
     }
 
     await sendWaitReact();
 
-    const data = await searchOnYouTube(fullArgs);
+    const data = await findOnYouTube(fullArgs);
 
     if (!data) {
       throw new WarningError("Não encontrei nada com esse nome!");

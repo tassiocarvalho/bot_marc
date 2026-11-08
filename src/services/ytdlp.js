@@ -14,6 +14,7 @@ import {
   YTDLP_COOKIES_FILE,
   YTDLP_PROXY,
 } from "../config.js";
+import { WarningError } from "../errors/index.js";
 import { getRandomName } from "../utils/index.js";
 import { errorLog } from "../utils/logger.js";
 
@@ -186,42 +187,73 @@ function buildAuthArgs() {
   return args;
 }
 
+const LOOKS_LIKE_LINK =
+  /^(?:https?:\/\/|(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)\/)/i;
+const YOUTUBE_HOST = /^(?:(?:www|m|music)\.)?youtube\.com$|^youtu\.be$/i;
+
 /**
- * Busca o primeiro resultado do YouTube para o termo informado.
+ * Valida um link digitado pelo usuário.
  *
- * @param {string} query Termo de busca digitado pelo usuário.
+ * Só o link remontado pelo URL chega ao yt-dlp: um texto solto como
+ * "--exec comando" seria lido por ele como uma opção de linha de comando.
+ *
+ * @param {string} link
+ * @returns {string | null}
+ */
+function parseYouTubeUrl(link) {
+  try {
+    const url = new URL(/^https?:/i.test(link) ? link : `https://${link}`);
+
+    return YOUTUBE_HOST.test(url.hostname) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lê os dados do primeiro vídeo de uma busca (ytsearch1:) ou de um link.
+ *
+ * @param {string} target
  * @returns {Promise<{title: string, channel: string, durationInSeconds: number, url: string, thumbnail: string} | null>}
  */
-export async function searchOnYouTube(query) {
+async function fetchVideoInfo(target) {
   const template = [
     "%(title)s",
     "%(channel)s",
     "%(duration)s",
     "%(webpage_url)s",
     "%(thumbnail)s",
+    "%(is_live)s",
   ].join(SEPARATOR);
 
   const output = await runYtDlpWithFallback([
     ...buildAuthArgs(),
     "--no-playlist",
+    "--playlist-items",
+    "1",
     "--force-ipv4",
     "--no-warnings",
     "--skip-download",
     "--print",
     template,
-    `ytsearch1:${query}`,
+    target,
   ]);
 
   if (!output) {
     return null;
   }
 
-  const [title, channel, duration, url, thumbnail] = output
+  const [title, channel, duration, url, thumbnail, isLive] = output
     .split("\n")[0]
     .split(SEPARATOR);
 
   if (!url) {
     return null;
+  }
+
+  // Sem esse corte, o yt-dlp grava a live até estourar o timeout.
+  if (isLive === "True") {
+    throw new WarningError("Não consigo baixar transmissões ao vivo!");
   }
 
   return {
@@ -231,6 +263,28 @@ export async function searchOnYouTube(query) {
     url,
     thumbnail: thumbnail && thumbnail !== "NA" ? thumbnail : null,
   };
+}
+
+/**
+ * Encontra um vídeo do YouTube pelo nome ou por um link.
+ *
+ * @param {string} input Nome da música/vídeo ou link digitado pelo usuário.
+ * @returns {ReturnType<typeof fetchVideoInfo>}
+ */
+export async function findOnYouTube(input) {
+  const text = input.trim();
+
+  if (!LOOKS_LIKE_LINK.test(text)) {
+    return fetchVideoInfo(`ytsearch1:${text}`);
+  }
+
+  const url = parseYouTubeUrl(text.split(/\s+/)[0]);
+
+  if (!url) {
+    throw new WarningError("Só consigo baixar links do YouTube!");
+  }
+
+  return fetchVideoInfo(url);
 }
 
 /**
