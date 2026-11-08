@@ -5,6 +5,8 @@ import {
   getGame,
   guessLetter,
   guessWord,
+  joinGame,
+  leaveGame,
   startGame,
   stopGame,
   useHint,
@@ -89,5 +91,46 @@ describe("forca: cada pessoa joga a própria partida", () => {
     start(ALICE, OTHER_GROUP);
 
     assert.notEqual(getGame(GROUP, ALICE), getGame(OTHER_GROUP, ALICE));
+  });
+
+  it("quem entra joga a mesma palavra e pontua por conta própria", () => {
+    start(ALICE);
+    const game = getGame(GROUP, ALICE);
+
+    assert.ok(joinGame(GROUP, BOB, ALICE));
+    assert.equal(getGame(GROUP, BOB), game);
+    assert.ok(guessLetter(GROUP, BOB, "a"));
+
+    assert.ok(game.guessed.has("a") || game.wrong.includes("a"));
+    assert.ok(BOB in game.scores);
+    assert.equal(ALICE in game.scores, false);
+  });
+
+  it("não entra em quem não tem partida", () => {
+    assert.equal(joinGame(GROUP, BOB, ALICE), null);
+    assert.equal(getGame(GROUP, BOB), null);
+  });
+
+  it("quem entrou pode sair sem encerrar a partida", () => {
+    start(ALICE);
+    const game = getGame(GROUP, ALICE);
+    joinGame(GROUP, BOB, ALICE);
+
+    assert.ok(leaveGame(GROUP, BOB));
+
+    assert.equal(getGame(GROUP, BOB), null);
+    assert.equal(getGame(GROUP, ALICE), game);
+    assert.deepEqual(game.players, [ALICE]);
+    assert.equal(leaveGame(GROUP, ALICE), null);
+  });
+
+  it("encerrar a partida libera todo mundo que estava nela", () => {
+    start(ALICE);
+    joinGame(GROUP, BOB, ALICE);
+
+    stopGame(GROUP, ALICE);
+
+    assert.equal(getGame(GROUP, ALICE), null);
+    assert.equal(getGame(GROUP, BOB), null);
   });
 });

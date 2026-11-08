@@ -2,6 +2,8 @@
  * Motor do Jogo da Forca para grupos.
  *
  * - Cada pessoa joga a própria partida, e várias rolam ao mesmo tempo no grupo.
+ * - Quem quiser jogar junto entra na partida de outra pessoa. Abrir para o grupo
+ *   todo não serve: letras soltas da conversa ("k", "s", "n") gastariam vidas.
  * - Letra certa: +1 ponto por ocorrência. Letra errada: -1 ponto e -1 vida.
  * - Chutar a palavra: acertou = +5 + 1 por letra escondida; errou = -2 pontos e -2 vidas.
  * - Acentos e Ç são ignorados no chute (A revela Á, Ã, Â...).
@@ -18,7 +20,7 @@ const RECENT_LIMIT = 80;
 
 const FACES = ["💀", "😱", "😰", "😨", "😟", "😐", "🙂"];
 
-/** @type {Map<string, any>} uma partida por jogador em cada grupo */
+/** @type {Map<string, any>} partida em que cada jogador está, por grupo */
 const games = new Map();
 /** @type {Map<string, string[]>} palavras recentes por grupo (evita repetir) */
 const recentWords = new Map();
@@ -104,11 +106,11 @@ function boardText(game, narration = "") {
     ? `\n❌ *Erradas:* ${game.wrong.map((l) => l.toUpperCase()).join(" ")}`
     : "";
 
-  return `🪢 *JOGO DA FORCA*\n🎮 *Jogador:* ${mention(game.starter)}\n📂 *Dica:* ${game.category} · 🔤 ${lettersCount(
+  return `🪢 *JOGO DA FORCA*\n🎮 *${game.players.length > 1 ? "Jogadores" : "Jogador"}:* ${game.players.map(mention).join(", ")}\n📂 *Dica:* ${game.category} · 🔤 ${lettersCount(
     game.word
   )} letras\n${narration ? `\n${narration}\n` : ""}\n\`\`\`\n${drawGallows(
     game.lives
-  )}\n\n${maskedWord(game)}\n\`\`\`\n${livesBar(game.lives)}${wrong}\n\n👉 Mande *uma letra* no grupo\n🎯 Sabe a palavra? *{prefix}forca chute PALAVRA*`;
+  )}\n\n${maskedWord(game)}\n\`\`\`\n${livesBar(game.lives)}${wrong}\n\n👉 Mande *uma letra* no grupo\n🎯 Sabe a palavra? *{prefix}forca chute PALAVRA*\n👥 Jogar junto: *{prefix}forca entrar ${mention(game.starter)}*`;
 }
 
 function scoreboard(game) {
@@ -121,7 +123,16 @@ function scoreboard(game) {
     .join("\n")}`;
 }
 
-const allPlayers = (game) => Object.keys(game.scores);
+// Inclui quem saiu no meio, para o placar marcar todo mundo que pontuou.
+const allPlayers = (game) => [...new Set([...game.players, ...Object.keys(game.scores)])];
+
+function closeGame(groupId, game) {
+  clearTimeout(game.timer);
+
+  for (const player of game.players) {
+    games.delete(gameKey(groupId, player));
+  }
+}
 
 function touch(groupId, game) {
   const key = gameKey(groupId, game.starter);
@@ -129,7 +140,7 @@ function touch(groupId, game) {
   clearTimeout(game.timer);
   game.timer = setTimeout(async () => {
     if (games.get(key) !== game) return;
-    games.delete(key);
+    closeGame(groupId, game);
     await game
       .send(
         `💤 A forca ficou abandonada...\nA palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
@@ -160,6 +171,7 @@ export function startGame({ groupId, starter, category, send }) {
     lives: MAX_LIVES,
     scores: {},
     starter,
+    players: [starter],
     hintUsed: false,
     send,
     timer: null,
@@ -174,11 +186,39 @@ export function startGame({ groupId, starter, category, send }) {
 export function stopGame(groupId, player) {
   const game = getGame(groupId, player);
   if (!game) return null;
-  clearTimeout(game.timer);
-  games.delete(gameKey(groupId, player));
+  closeGame(groupId, game);
   return {
     text: `🛑 Forca encerrada. A palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
     mentions: allPlayers(game),
+  };
+}
+
+/** Coloca a pessoa na partida de outra. Retorna null se a outra não tiver partida. */
+export function joinGame(groupId, player, owner) {
+  const game = getGame(groupId, owner);
+  if (!game) return null;
+
+  game.players.push(player);
+  games.set(gameKey(groupId, player), game);
+  touch(groupId, game);
+
+  return {
+    text: boardText(game, `🤝 ${mention(player)} entrou na partida!`),
+    mentions: game.players,
+  };
+}
+
+/** Tira da partida quem entrou nela. Quem abriu encerra com stopGame. */
+export function leaveGame(groupId, player) {
+  const game = getGame(groupId, player);
+  if (!game || game.starter === player) return null;
+
+  game.players = game.players.filter((current) => current !== player);
+  games.delete(gameKey(groupId, player));
+
+  return {
+    text: `👋 ${mention(player)} saiu da forca de ${mention(game.starter)}.`,
+    mentions: [player, game.starter],
   };
 }
 
@@ -187,8 +227,7 @@ function addScore(game, player, points) {
 }
 
 function finish(groupId, game, won, narration, winner) {
-  clearTimeout(game.timer);
-  games.delete(gameKey(groupId, game.starter));
+  closeGame(groupId, game);
   addHangmanScores(groupId, game.scores, won ? winner : null);
 
   const ending = won
@@ -237,7 +276,7 @@ export function guessLetter(groupId, player, rawLetter) {
       return finish(groupId, game, true, `${narration}\n🏁 Última letra! (+3 bônus)`, player);
     }
 
-    return { text: boardText(game, narration), mentions: [player] };
+    return { text: boardText(game, narration), mentions: game.players };
   }
 
   game.wrong.push(letter);
@@ -250,7 +289,7 @@ export function guessLetter(groupId, player, rawLetter) {
 
   if (game.lives <= 0) return finish(groupId, game, false, narration, null);
 
-  return { text: boardText(game, narration), mentions: [player] };
+  return { text: boardText(game, narration), mentions: game.players };
 }
 
 /**
@@ -284,7 +323,7 @@ export function guessWord(groupId, player, text) {
 
   if (game.lives <= 0) return finish(groupId, game, false, narration, null);
 
-  return { text: boardText(game, narration), mentions: [player] };
+  return { text: boardText(game, narration), mentions: game.players };
 }
 
 /** Revela uma letra ao custo de 1 vida (uma vez por partida). */
@@ -306,11 +345,11 @@ export function useHint(groupId, player) {
 
   return {
     text: boardText(game, `💡 ${mention(player)} pediu dica: a letra *${letter.toUpperCase()}* foi revelada! (-1 vida)`),
-    mentions: [player],
+    mentions: game.players,
   };
 }
 
 export function describeGame(groupId, player) {
   const game = getGame(groupId, player);
-  return game ? { text: boardText(game), mentions: [game.starter] } : null;
+  return game ? { text: boardText(game), mentions: game.players } : null;
 }

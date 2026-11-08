@@ -1,5 +1,6 @@
 /**
- * Jogo da Forca no grupo: cada pessoa joga a própria partida.
+ * Jogo da Forca no grupo: cada pessoa joga a própria partida e pode
+ * entrar na de outra para jogarem a mesma palavra.
  * As letras soltas são capturadas em src/middlewares/customMiddleware.js.
  *
  * @author bot_marc
@@ -13,6 +14,8 @@ import {
   getGame,
   guessLetter,
   guessWord,
+  joinGame,
+  leaveGame,
   startGame,
   stopGame,
   totalWords,
@@ -21,7 +24,11 @@ import {
 } from "../../../services/hangman.js";
 import { getHangmanRanking } from "../../../utils/database.js";
 import { onlyNumbers } from "../../../utils/index.js";
-import { getSenderPlayerId, splitWords } from "../../../utils/playerId.js";
+import {
+  getSenderPlayerId,
+  getTargetPlayerId,
+  splitWords,
+} from "../../../utils/playerId.js";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -32,7 +39,9 @@ function helpText(prefix) {
 📂 *${prefix}forca animal* — escolhe a categoria
 📋 *${prefix}forca categorias*
 🔤 Mande *uma letra* no grupo pra chutar
-👥 Cada pessoa joga a própria forca, ao mesmo tempo
+👤 Cada pessoa pode abrir a própria forca, ao mesmo tempo
+👥 *${prefix}forca entrar @fulano* — joga a mesma palavra junto
+🚪 *${prefix}forca parar* — quem entrou sai; quem abriu encerra
 🎯 *${prefix}forca chute PALAVRA* — arrisca a palavra
 💡 *${prefix}forca dica* — revela uma letra (custa 1 vida)
 👀 *${prefix}forca status* · 🛑 *${prefix}forca parar*
@@ -103,6 +112,18 @@ export default {
         return sendReply(`🏆 *RANKING — FORCA* 🏆\n\n${lines.join("\n\n")}`, ranking.map((e) => e.player));
       }
 
+      case "entrar":
+      case "juntar": {
+        if (game) {
+          throw new WarningError(`Você já está em uma forca! Para sair: ${prefix}forca parar`);
+        }
+        const owner = await getTargetPlayerId(socket, webMessage, args[1]);
+        if (!owner) throw new WarningError(`De quem é a forca? Ex.: ${prefix}forca entrar @fulano`);
+        const joined = joinGame(remoteJid, player, owner);
+        if (!joined) throw new WarningError("Essa pessoa não tem forca aberta.");
+        return reply(joined);
+      }
+
       case "chute":
       case "chutar":
       case "palavra": {
@@ -125,6 +146,7 @@ export default {
       case "encerrar":
       case "cancelar":
         assertHasGame();
+        if (game.starter !== player) return reply(leaveGame(remoteJid, player));
         return send(...Object.values(stopGame(remoteJid, player)));
 
       default:
