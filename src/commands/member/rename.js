@@ -1,12 +1,7 @@
 import fs from "node:fs";
 import { PREFIX } from "../../config.js";
 import { DangerError, InvalidParameterError } from "../../errors/index.js";
-import {
-  addStickerMetadata,
-  isAnimatedSticker,
-  processAnimatedSticker,
-  processStaticSticker,
-} from "../../services/sticker.js";
+import { recreateSquareSticker } from "../../services/sticker.js";
 import { getRandomName } from "../../utils/index.js";
 
 export default {
@@ -71,21 +66,8 @@ export default {
         botName: author,
       };
 
-      const isAnimated = await isAnimatedSticker(inputPath);
-
-      if (isAnimated) {
-        finalStickerPath = await processAnimatedSticker(
-          inputPath,
-          metadata,
-          addStickerMetadata
-        );
-      } else {
-        finalStickerPath = await processStaticSticker(
-          inputPath,
-          metadata,
-          addStickerMetadata
-        );
-      }
+      // Recria sempre em quadro 1:1, igual ao /s.
+      finalStickerPath = await recreateSquareSticker(inputPath, metadata);
 
       await sendSuccessReact();
 

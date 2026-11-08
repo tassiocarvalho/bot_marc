@@ -7,6 +7,7 @@ import { exec } from "child_process";
 import webp from "node-webpmux";
 import fs from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
 import { BOT_EMOJI, STICKER_AUTHOR, TEMP_DIR } from "../config.js";
 import { getRandomName, getRandomNumber, getUserName } from "../utils/index.js";
 
@@ -117,6 +118,56 @@ export async function processAnimatedSticker(inputPath, metadata) {
     console.log("Erro node-webpmux:", err);
     throw new Error("Erro ao processar sticker animado sem FFmpeg.");
   }
+}
+
+const STICKER_SIDE = 512;
+const MAX_ANIMATED_STICKER_BYTES = 500 * 1024;
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+
+/**
+ * Recria a figurinha num quadro 1:1 (fundo transparente, sem distorcer),
+ * aplicando os novos metadados. Usado pelo rename.
+ *
+ * - Estática: sempre 512x512.
+ * - Animada: lado = maior dimensão (máx. 512), sem ampliar à toa para não
+ *   estourar o limite de tamanho do WhatsApp. Se já for quadrada, só troca
+ *   os metadados para não perder qualidade.
+ */
+export async function recreateSquareSticker(inputPath, metadata) {
+  const info = await sharp(inputPath, { animated: true }).metadata();
+  const pages = info.pages || 1;
+  const width = info.width;
+  const height = info.pageHeight || info.height;
+
+  if (pages < 2) {
+    const buffer = await sharp(inputPath)
+      .resize(STICKER_SIDE, STICKER_SIDE, {
+        fit: "contain",
+        background: TRANSPARENT,
+      })
+      .webp({ quality: 90 })
+      .toBuffer();
+
+    return addStickerMetadata(buffer, metadata);
+  }
+
+  if (width === height && width <= STICKER_SIDE) {
+    return processAnimatedSticker(inputPath, metadata);
+  }
+
+  const side = Math.min(STICKER_SIDE, Math.max(width, height));
+  let buffer = null;
+
+  for (const quality of [80, 60, 40, 25]) {
+    buffer = await sharp(inputPath, { animated: true })
+      .resize(side, side, { fit: "contain", background: TRANSPARENT })
+      .webp({ quality, loop: info.loop ?? 0, delay: info.delay, effort: 4 })
+      .toBuffer();
+
+    if (buffer.length <= MAX_ANIMATED_STICKER_BYTES) break;
+  }
+
+  return addStickerMetadata(buffer, metadata);
 }
 
 export async function processAnimatedGifToSticker(inputPath, metadata) {
