@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import pino from "pino";
 import { PREFIX, TEMP_DIR } from "./config.js";
 import { load } from "./loader.js";
+import { ensureAllGroupFolders, ensureGroupFolder } from "./services/pet.js";
 import { badMacHandler } from "./utils/badMacHandler.js";
 import { onlyNumbers, question } from "./utils/index.js";
 import {
@@ -201,6 +202,11 @@ Verifique o prefixo, digitando a palavra "prefixo" no WhatsApp.
 O prefixo padrão definido no config.js é ${PREFIX}`,
       );
       badMacHandler.resetErrorCount();
+
+      // /pet: uma pasta por grupo em que o bot está (database/pets/<grupo>).
+      ensureAllGroupFolders(socket)
+        .then((total) => infoLog(`🐾 Pastas de pets prontas para ${total} grupo(s).`))
+        .catch((error) => warningLog(`Não consegui criar as pastas dos pets: ${error.message}`));
     } else if (connection === "connecting") {
       infoLog("Conectando...");
     } else {
@@ -209,6 +215,16 @@ O prefixo padrão definido no config.js é ${PREFIX}`,
   });
 
   socket.ev.on("creds.update", saveCreds);
+
+  socket.ev.on("groups.upsert", (groups) => {
+    for (const group of groups || []) {
+      try {
+        ensureGroupFolder(group.id, group.subject || null);
+      } catch (error) {
+        warningLog(`Não consegui criar a pasta de pets do grupo: ${error.message}`);
+      }
+    }
+  });
 
   return socket;
 }

@@ -8,3 +8,6 @@ assets/temp/wa-logs.txt
 cookies.txt
 *cookies*.txt
 *.cookies
+
+# Dados do /pet (um diretório por grupo)
+database/pets/
