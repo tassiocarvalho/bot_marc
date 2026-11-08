@@ -1,5 +1,5 @@
 /**
- * Jogo da Forca no grupo: só quem iniciou a partida pode jogar.
+ * Jogo da Forca no grupo: cada pessoa joga a própria partida.
  * As letras soltas são capturadas em src/middlewares/customMiddleware.js.
  *
  * @author bot_marc
@@ -13,7 +13,6 @@ import {
   getGame,
   guessLetter,
   guessWord,
-  isGamePlayer,
   startGame,
   stopGame,
   totalWords,
@@ -33,7 +32,7 @@ function helpText(prefix) {
 📂 *${prefix}forca animal* — escolhe a categoria
 📋 *${prefix}forca categorias*
 🔤 Mande *uma letra* no grupo pra chutar
-🔒 Só quem iniciou a partida pode jogar
+👥 Cada pessoa joga a própria forca, ao mesmo tempo
 🎯 *${prefix}forca chute PALAVRA* — arrisca a palavra
 💡 *${prefix}forca dica* — revela uma letra (custa 1 vida)
 👀 *${prefix}forca status* · 🛑 *${prefix}forca parar*
@@ -70,13 +69,11 @@ export default {
       reply(result.error ? { text: result.error, mentions: result.mentions } : result);
 
     const action = (args[0] || "").toLowerCase().trim();
-    const game = getGame(remoteJid);
+    const game = getGame(remoteJid, player);
 
-    const assertPlayer = () => {
-      if (!isGamePlayer(game, player)) {
-        throw new WarningError(
-          `Essa forca é de @${onlyNumbers(game.starter)}! Só quem iniciou pode jogar. 🔒`
-        );
+    const assertHasGame = () => {
+      if (!game) {
+        throw new WarningError(`Você não tem forca aberta. Comece com ${prefix}forca`);
       }
     };
 
@@ -109,41 +106,36 @@ export default {
       case "chute":
       case "chutar":
       case "palavra": {
-        if (!game) throw new WarningError(`Nenhuma forca rolando. Comece com ${prefix}forca`);
-        assertPlayer();
+        assertHasGame();
         const word = args.slice(1).join(" ").trim();
         if (!word) throw new WarningError(`Diga a palavra! Ex.: ${prefix}forca chute cachorro`);
         return answer(guessWord(remoteJid, player, word));
       }
 
       case "dica":
-        if (!game) throw new WarningError(`Nenhuma forca rolando. Comece com ${prefix}forca`);
-        assertPlayer();
+        assertHasGame();
         return answer(useHint(remoteJid, player));
 
       case "status":
       case "tabuleiro":
-        if (!game) throw new WarningError(`Nenhuma forca rolando. Comece com ${prefix}forca`);
-        return reply(describeGame(remoteJid));
+        assertHasGame();
+        return reply(describeGame(remoteJid, player));
 
       case "parar":
       case "encerrar":
       case "cancelar":
-        if (!game) throw new WarningError("Não há forca rolando.");
-        assertPlayer();
-        return send(...Object.values(stopGame(remoteJid)));
+        assertHasGame();
+        return send(...Object.values(stopGame(remoteJid, player)));
 
       default:
         break;
     }
 
     if (game) {
-      if (action) assertPlayer();
-
       // "/forca a" chuta letra; "/forca cachorro" chuta palavra.
       if (action && [...action].length === 1) return answer(guessLetter(remoteJid, player, action));
       if (action) return answer(guessWord(remoteJid, player, fullArgs));
-      return reply(describeGame(remoteJid));
+      return reply(describeGame(remoteJid, player));
     }
 
     let category = null;

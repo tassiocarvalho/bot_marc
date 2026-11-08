@@ -32,6 +32,7 @@ const TIC_TAC_TOE_FILE = "tic-tac-toe-ranking";
 const RPS_FILE = "rps-ranking";
 const CHECKERS_FILE = "checkers-ranking";
 const HANGMAN_FILE = "hangman-ranking";
+const MESSAGE_RANKING_FILE = "message-ranking";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -540,6 +541,37 @@ export function getSpiderApiToken() {
   const config = readJSON(filename, {});
 
   return config.spider_api_token || SPIDER_API_TOKEN;
+}
+
+/**
+ * Soma um lote de contagens no arquivo do /rank.
+ *
+ * @param {Record<string, Record<string, Record<string, number>>>} pendingByGroup
+ * Formato: { grupo: { membro: { categoria: quantidade } } }
+ */
+export function addMessageCounts(pendingByGroup) {
+  const data = readJSON(MESSAGE_RANKING_FILE, {});
+
+  for (const [groupId, users] of Object.entries(pendingByGroup)) {
+    data[groupId] ??= { since: new Date().toISOString(), users: {} };
+
+    const storedUsers = data[groupId].users;
+
+    for (const [userId, counts] of Object.entries(users)) {
+      storedUsers[userId] ??= {};
+
+      for (const [category, amount] of Object.entries(counts)) {
+        storedUsers[userId][category] =
+          (storedUsers[userId][category] || 0) + amount;
+      }
+    }
+  }
+
+  writeJSON(MESSAGE_RANKING_FILE, data, {});
+}
+
+export function getMessageCounts(groupId) {
+  return readJSON(MESSAGE_RANKING_FILE, {})[groupId] || null;
 }
 
 export function addTicTacToeResult(groupId, result) {

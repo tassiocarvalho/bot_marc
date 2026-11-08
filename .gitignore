@@ -11,3 +11,6 @@ cookies.txt
 
 # Dados do /pet (um diretório por grupo)
 database/pets/
+
+# Contagem de mensagens do /rank
+database/message-ranking.json

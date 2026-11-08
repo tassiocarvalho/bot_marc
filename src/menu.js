@@ -85,6 +85,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}meu-lid
 ▢ • ${prefix}perfil
 ▢ • ${prefix}ping
+▢ • ${prefix}rank
 ▢ • ${prefix}raw-message
 ▢ • ${prefix}rename
 ▢ • ${prefix}sticker

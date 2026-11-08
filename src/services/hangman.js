@@ -1,7 +1,7 @@
 /**
  * Motor do Jogo da Forca para grupos.
  *
- * - Só quem iniciou a partida pode jogar (comparação pelo userLid).
+ * - Cada pessoa joga a própria partida, e várias rolam ao mesmo tempo no grupo.
  * - Letra certa: +1 ponto por ocorrência. Letra errada: -1 ponto e -1 vida.
  * - Chutar a palavra: acertou = +5 + 1 por letra escondida; errou = -2 pontos e -2 vidas.
  * - Acentos e Ç são ignorados no chute (A revela Á, Ã, Â...).
@@ -18,11 +18,12 @@ const RECENT_LIMIT = 80;
 
 const FACES = ["💀", "😱", "😰", "😨", "😟", "😐", "🙂"];
 
-/** @type {Map<string, any>} */
+/** @type {Map<string, any>} uma partida por jogador em cada grupo */
 const games = new Map();
 /** @type {Map<string, string[]>} palavras recentes por grupo (evita repetir) */
 const recentWords = new Map();
 
+const gameKey = (groupId, player) => `${groupId}|${player}`;
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const mention = (player) => `@${onlyNumbers(player)}`;
 
@@ -123,10 +124,12 @@ function scoreboard(game) {
 const allPlayers = (game) => Object.keys(game.scores);
 
 function touch(groupId, game) {
+  const key = gameKey(groupId, game.starter);
+
   clearTimeout(game.timer);
   game.timer = setTimeout(async () => {
-    if (games.get(groupId) !== game) return;
-    games.delete(groupId);
+    if (games.get(key) !== game) return;
+    games.delete(key);
     await game
       .send(
         `💤 A forca ficou abandonada...\nA palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
@@ -136,13 +139,8 @@ function touch(groupId, game) {
   }, IDLE_TIMEOUT_MS);
 }
 
-export function getGame(groupId) {
-  return games.get(groupId) || null;
-}
-
-/** Só quem iniciou a forca pode jogar nela. */
-export function isGamePlayer(game, player) {
-  return game.starter === player;
+export function getGame(groupId, player) {
+  return games.get(gameKey(groupId, player)) || null;
 }
 
 export function startGame({ groupId, starter, category, send }) {
@@ -167,17 +165,17 @@ export function startGame({ groupId, starter, category, send }) {
     timer: null,
   };
 
-  games.set(groupId, game);
+  games.set(gameKey(groupId, starter), game);
   touch(groupId, game);
 
   return { text: boardText(game, "🎬 *Nova palavra sorteada!* Valendo pontos!"), mentions: [starter] };
 }
 
-export function stopGame(groupId) {
-  const game = games.get(groupId);
+export function stopGame(groupId, player) {
+  const game = getGame(groupId, player);
   if (!game) return null;
   clearTimeout(game.timer);
-  games.delete(groupId);
+  games.delete(gameKey(groupId, player));
   return {
     text: `🛑 Forca encerrada. A palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
     mentions: allPlayers(game),
@@ -190,7 +188,7 @@ function addScore(game, player, points) {
 
 function finish(groupId, game, won, narration, winner) {
   clearTimeout(game.timer);
-  games.delete(groupId);
+  games.delete(gameKey(groupId, game.starter));
   addHangmanScores(groupId, game.scores, won ? winner : null);
 
   const ending = won
@@ -208,12 +206,12 @@ function finish(groupId, game, won, narration, winner) {
 }
 
 /**
- * Chute de uma letra. Retorna null se não houver jogo
- * ou se quem mandou não for o jogador da partida.
+ * Chute de uma letra na partida de quem mandou.
+ * Retorna null se a pessoa não tiver partida aberta.
  */
 export function guessLetter(groupId, player, rawLetter) {
-  const game = games.get(groupId);
-  if (!game || !isGamePlayer(game, player)) return null;
+  const game = getGame(groupId, player);
+  if (!game) return null;
 
   const letter = normalize(rawLetter);
   if (!/^[a-z]$/.test(letter)) return null;
@@ -259,8 +257,8 @@ export function guessLetter(groupId, player, rawLetter) {
  * Chute da palavra inteira.
  */
 export function guessWord(groupId, player, text) {
-  const game = games.get(groupId);
-  if (!game || !isGamePlayer(game, player)) return null;
+  const game = getGame(groupId, player);
+  if (!game) return null;
 
   touch(groupId, game);
 
@@ -291,8 +289,8 @@ export function guessWord(groupId, player, text) {
 
 /** Revela uma letra ao custo de 1 vida (uma vez por partida). */
 export function useHint(groupId, player) {
-  const game = games.get(groupId);
-  if (!game || !isGamePlayer(game, player)) return null;
+  const game = getGame(groupId, player);
+  if (!game) return null;
 
   if (game.hintUsed) return { error: "💡 A dica já foi usada nesta palavra!", mentions: [] };
   if (game.lives <= 1) return { error: "💡 Com uma vida só não dá pra pedir dica! 😬", mentions: [] };
@@ -312,7 +310,7 @@ export function useHint(groupId, player) {
   };
 }
 
-export function describeGame(groupId) {
-  const game = games.get(groupId);
+export function describeGame(groupId, player) {
+  const game = getGame(groupId, player);
   return game ? { text: boardText(game), mentions: [game.starter] } : null;
 }

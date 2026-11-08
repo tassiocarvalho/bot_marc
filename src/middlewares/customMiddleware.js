@@ -20,16 +20,17 @@ import {
   withPrefix as withCheckersPrefix,
 } from "../services/checkers.js";
 import {
-  getGame as getHangmanGame,
   guessLetter,
   withPrefix as withHangmanPrefix,
 } from "../services/hangman.js";
+import { trackMessage } from "../services/message-ranking.js";
 import {
   getGame as getRpsGame,
   playVsBotInGroup,
 } from "../services/rock-paper-scissors.js";
 import { getGame, playMove, withPrefix } from "../services/tic-tac-toe.js";
 import { getPrefix, isActiveGroup } from "../utils/database.js";
+import { errorLog } from "../utils/logger.js";
 import { getSenderPlayerId } from "../utils/playerId.js";
 
 export async function customMiddleware({
@@ -48,11 +49,32 @@ export async function customMiddleware({
 
     const props = { ...commonFunctions, getPlayer };
 
+    countMessageForRank(props);
+
     await handleTicTacToeMove(props);
     await handleRpsVsBotChoice(props);
     await handleCheckersMove(props);
     await handleHangmanLetter(props);
   }
+}
+
+/**
+ * /rank: conta sem esperar, para a busca do ID não atrasar jogos e comandos.
+ */
+function countMessageForRank({
+  socket,
+  webMessage,
+  isGroup,
+  remoteJid,
+  getPlayer,
+}) {
+  if (!isGroup || !isActiveGroup(remoteJid)) {
+    return;
+  }
+
+  trackMessage({ socket, webMessage, getPlayer }).catch((error) =>
+    errorLog(`Erro ao contar mensagem para o /rank: ${error.message}`),
+  );
 }
 
 /**
@@ -156,7 +178,7 @@ async function handleCheckersMove({
 }
 
 /**
- * Forca: quem iniciou a partida manda uma letra sozinha no grupo.
+ * Forca: a letra sozinha no grupo vai para a partida de quem mandou.
  */
 async function handleHangmanLetter({
   fullMessage,
@@ -167,7 +189,7 @@ async function handleHangmanLetter({
 }) {
   const text = (fullMessage || "").trim();
 
-  if (!isGroup || [...text].length !== 1 || !getHangmanGame(remoteJid)) {
+  if (!isGroup || [...text].length !== 1) {
     return;
   }
 
