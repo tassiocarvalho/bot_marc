@@ -168,7 +168,9 @@ async function runYtDlpWithFallback(args, hooks = {}) {
  * @returns {string[]}
  */
 function buildAuthArgs() {
-  const args = [];
+  // Sem runtime JS o yt-dlp perde formatos do YouTube, e por padrao ele so
+  // procura o deno. O node ja existe em qualquer ambiente que roda o bot.
+  const args = ["--js-runtimes", "node"];
 
   if (YTDLP_COOKIES_FILE) {
     if (fs.existsSync(YTDLP_COOKIES_FILE)) {
@@ -318,6 +320,8 @@ export async function downloadFromYouTube({ url, type }) {
         "mp3",
         "--audio-quality",
         "5",
+        "--max-filesize",
+        AUDIO_MAX_FILESIZE,
       ]
     : [
         "--format",
