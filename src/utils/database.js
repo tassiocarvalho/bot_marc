@@ -31,6 +31,7 @@ const WELCOME_GROUPS_FILE = "welcome-groups";
 const TIC_TAC_TOE_FILE = "tic-tac-toe-ranking";
 const RPS_FILE = "rps-ranking";
 const CHECKERS_FILE = "checkers-ranking";
+const HANGMAN_FILE = "hangman-ranking";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -602,4 +603,30 @@ export function addCheckersResult(groupId, result) {
 
 export function getCheckersRanking(groupId) {
   return getRankingFrom(CHECKERS_FILE, groupId);
+}
+
+export function addHangmanScores(groupId, scores, winner) {
+  const ranking = readJSON(HANGMAN_FILE, {});
+
+  if (!ranking[groupId]) {
+    ranking[groupId] = {};
+  }
+
+  for (const [player, points] of Object.entries(scores)) {
+    const stats = ranking[groupId][player] || { points: 0, words: 0, games: 0 };
+    stats.points += points;
+    stats.games += 1;
+    if (player === winner) stats.words += 1;
+    ranking[groupId][player] = stats;
+  }
+
+  writeJSON(HANGMAN_FILE, ranking, {});
+}
+
+export function getHangmanRanking(groupId) {
+  const ranking = readJSON(HANGMAN_FILE, {});
+
+  return Object.entries(ranking[groupId] || {})
+    .map(([player, stats]) => ({ player, ...stats }))
+    .sort((a, b) => b.points - a.points || b.words - a.words);
 }

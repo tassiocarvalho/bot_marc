@@ -24,6 +24,11 @@ import {
 } from "../../../services/rock-paper-scissors.js";
 import { getRpsRanking } from "../../../utils/database.js";
 import { onlyNumbers } from "../../../utils/index.js";
+import {
+  getSenderPlayerId,
+  getTargetPlayerId,
+  splitWords,
+} from "../../../utils/playerId.js";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -50,20 +55,22 @@ export default {
    * @param {CommandHandleProps} props
    */
   handle: async ({
-    args,
+    fullArgs,
     isGroup,
-    isReply,
     prefix,
     remoteJid,
-    replyLid,
     sendReply,
     sendText,
     socket,
-    userLid,
+    webMessage,
   }) => {
     if (!isGroup) {
       throw new WarningError("O Jokenpô só funciona em grupos!");
     }
+
+    const args = splitWords(fullArgs);
+    const player = await getSenderPlayerId(socket, webMessage);
+    if (!player) return;
 
     const reply = ({ text, mentions }) => sendReply(withPrefix(text, prefix), mentions);
     const send = (text, mentions) => sendText(withPrefix(text, prefix), mentions);
@@ -82,7 +89,7 @@ export default {
           throw new WarningError("Não há nenhum desafio de Jokenpô pendente aqui.");
         }
 
-        if (game.players[1] !== userLid) {
+        if (game.players[1] !== player) {
           throw new WarningError("Esse desafio não é pra você! 👀");
         }
 
@@ -91,7 +98,7 @@ export default {
 
       case "recusar":
       case "cancelar": {
-        if (!game || game.status !== "pending" || !isInGame(game, userLid)) {
+        if (!game || game.status !== "pending" || !isInGame(game, player)) {
           throw new WarningError("Não há desafio seu para recusar/cancelar.");
         }
 
@@ -99,8 +106,8 @@ export default {
 
         return reply({
           text:
-            game.players[1] === userLid
-              ? `🐔 @${onlyNumbers(userLid)} arregou do Jokenpô contra @${onlyNumbers(
+            game.players[1] === player
+              ? `🐔 @${onlyNumbers(player)} arregou do Jokenpô contra @${onlyNumbers(
                   game.players[0]
                 )}!`
               : "❌ Desafio cancelado.",
@@ -110,11 +117,11 @@ export default {
 
       case "desistir":
       case "sair": {
-        if (!game || game.status !== "playing" || !isInGame(game, userLid)) {
+        if (!game || game.status !== "playing" || !isInGame(game, player)) {
           throw new WarningError("Você não está em uma partida em andamento.");
         }
 
-        return surrender(remoteJid, userLid);
+        return surrender(remoteJid, player);
       }
 
       case "revanche": {
@@ -122,7 +129,7 @@ export default {
           throw new WarningError("Não há partida encerrada para revanche.");
         }
 
-        if (!isInGame(game, userLid)) {
+        if (!isInGame(game, player)) {
           throw new WarningError("Só quem jogou a última partida pode pedir revanche!");
         }
 
@@ -173,10 +180,8 @@ export default {
 
     if (["bot", "robo", "robô", "ia"].includes(action)) {
       challenged = BOT_PLAYER;
-    } else if (isReply && replyLid) {
-      challenged = replyLid;
-    } else if (args[0] && args[0].startsWith("@") && onlyNumbers(args[0])) {
-      challenged = `${onlyNumbers(args[0])}@lid`;
+    } else {
+      challenged = await getTargetPlayerId(socket, webMessage, args[0]);
     }
 
     if (!challenged) {
@@ -188,18 +193,18 @@ export default {
       challenged = BOT_PLAYER;
     }
 
-    if (challenged === userLid) {
+    if (challenged === player) {
       throw new WarningError("Jokenpô contra você mesmo? Sempre empata. 😅");
     }
 
-    if (isBusy(userLid) || (challenged !== BOT_PLAYER && isBusy(challenged))) {
+    if (isBusy(player) || (challenged !== BOT_PLAYER && isBusy(challenged))) {
       throw new WarningError("Um dos jogadores já está em outra partida de Jokenpô!");
     }
 
     return reply(
       await createInvite({
         groupId: remoteJid,
-        challenger: userLid,
+        challenger: player,
         challenged,
         bestOf,
         send,

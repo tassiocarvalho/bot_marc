@@ -24,6 +24,11 @@ import {
 } from "../../../services/checkers.js";
 import { getCheckersRanking } from "../../../utils/database.js";
 import { onlyNumbers } from "../../../utils/index.js";
+import {
+  getSenderPlayerId,
+  getTargetPlayerId,
+  splitWords,
+} from "../../../utils/playerId.js";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -59,20 +64,22 @@ export default {
    * @param {CommandHandleProps} props
    */
   handle: async ({
-    args,
+    fullArgs,
     isGroup,
-    isReply,
     prefix,
     remoteJid,
-    replyLid,
     sendReply,
     sendText,
     socket,
-    userLid,
+    webMessage,
   }) => {
     if (!isGroup) {
       throw new WarningError("O jogo de damas só funciona em grupos!");
     }
+
+    const args = splitWords(fullArgs);
+    const player = await getSenderPlayerId(socket, webMessage);
+    if (!player) return;
 
     const reply = ({ text, mentions }) => sendReply(withPrefix(text, prefix), mentions);
     const send = (text, mentions) => sendText(withPrefix(text, prefix), mentions);
@@ -82,12 +89,12 @@ export default {
 
     // Jogada via comando: /dama 3  ou  /dama c3 d4
     if (/^\d{1,2}$/.test(action) || /^[a-h][1-8]$/.test(action)) {
-      const result = playMove(remoteJid, userLid, args.join(" "));
+      const result = playMove(remoteJid, player, args.join(" "));
       if (!result) throw new WarningError("Você não está em uma partida em andamento.");
       return reply(result.error ? { text: result.error, mentions: result.mentions } : result);
     }
 
-    const playing = game && game.status === "playing" && isInGame(game, userLid);
+    const playing = game && game.status === "playing" && isInGame(game, player);
 
     switch (action) {
       case "ajuda":
@@ -100,21 +107,21 @@ export default {
         if (!game || game.status !== "pending") {
           throw new WarningError("Não há nenhum desafio de damas pendente aqui.");
         }
-        if (game.players.b !== userLid) {
+        if (game.players.b !== player) {
           throw new WarningError("Esse desafio não é pra você! 👀");
         }
         return reply(acceptInvite(remoteJid));
 
       case "recusar":
       case "cancelar":
-        if (!game || game.status !== "pending" || !isInGame(game, userLid)) {
+        if (!game || game.status !== "pending" || !isInGame(game, player)) {
           throw new WarningError("Não há desafio seu para recusar/cancelar.");
         }
         cancelGame(remoteJid);
         return reply({
           text:
-            game.players.b === userLid
-              ? `🐔 @${onlyNumbers(userLid)} fugiu do tabuleiro de @${onlyNumbers(game.players.w)}!`
+            game.players.b === player
+              ? `🐔 @${onlyNumbers(player)} fugiu do tabuleiro de @${onlyNumbers(game.players.w)}!`
               : "❌ Desafio cancelado.",
           mentions: [game.players.w, game.players.b],
         });
@@ -122,17 +129,17 @@ export default {
       case "desistir":
       case "sair":
         if (!playing) throw new WarningError("Você não está em uma partida em andamento.");
-        return reply(surrender(remoteJid, userLid));
+        return reply(surrender(remoteJid, player));
 
       case "empate":
         if (!playing) throw new WarningError("Você não está em uma partida em andamento.");
-        return reply(offerDraw(remoteJid, userLid));
+        return reply(offerDraw(remoteJid, player));
 
       case "revanche":
         if (!game || game.status !== "finished") {
           throw new WarningError("Não há partida encerrada para revanche.");
         }
-        if (!isInGame(game, userLid)) {
+        if (!isInGame(game, player)) {
           throw new WarningError("Só quem jogou a última partida pode pedir revanche!");
         }
         return send(...Object.values(rematch(remoteJid)));
@@ -184,10 +191,8 @@ export default {
         : ["dificil", "difícil", "hard", "impossivel"].includes(level)
         ? "dificil"
         : "normal";
-    } else if (isReply && replyLid) {
-      challenged = replyLid;
-    } else if (args[0] && onlyNumbers(args[0])) {
-      challenged = `${onlyNumbers(args[0])}@lid`;
+    } else {
+      challenged = await getTargetPlayerId(socket, webMessage, args[0]);
     }
 
     if (!challenged) return sendReply(helpText(prefix));
@@ -197,12 +202,12 @@ export default {
       challenged = BOT_PLAYER;
     }
 
-    if (challenged === userLid) {
+    if (challenged === player) {
       throw new WarningError("Damas contra você mesmo? Aí não tem graça. 😅");
     }
 
     return reply(
-      createInvite({ groupId: remoteJid, challenger: userLid, challenged, send, difficulty })
+      createInvite({ groupId: remoteJid, challenger: player, challenged, send, difficulty })
     );
   },
 };

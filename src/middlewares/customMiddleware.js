@@ -19,9 +19,18 @@ import {
   playMove as playCheckersMove,
   withPrefix as withCheckersPrefix,
 } from "../services/checkers.js";
-import { playVsBotInGroup } from "../services/rock-paper-scissors.js";
+import {
+  getGame as getHangmanGame,
+  guessLetter,
+  withPrefix as withHangmanPrefix,
+} from "../services/hangman.js";
+import {
+  getGame as getRpsGame,
+  playVsBotInGroup,
+} from "../services/rock-paper-scissors.js";
 import { getGame, playMove, withPrefix } from "../services/tic-tac-toe.js";
-import { isActiveGroup } from "../utils/database.js";
+import { getPrefix, isActiveGroup } from "../utils/database.js";
+import { getSenderPlayerId } from "../utils/playerId.js";
 
 export async function customMiddleware({
   socket,
@@ -32,9 +41,17 @@ export async function customMiddleware({
   data,
 }) {
   if (type === "message" && commonFunctions) {
-    await handleTicTacToeMove(commonFunctions);
-    await handleRpsVsBotChoice(commonFunctions);
-    await handleCheckersMove(commonFunctions);
+    // ID canônico do jogador (LID), resolvido só quando algum jogo precisa.
+    let playerPromise = null;
+    const getPlayer = () =>
+      (playerPromise ??= getSenderPlayerId(socket, webMessage).catch(() => null));
+
+    const props = { ...commonFunctions, getPlayer };
+
+    await handleTicTacToeMove(props);
+    await handleRpsVsBotChoice(props);
+    await handleCheckersMove(props);
+    await handleHangmanLetter(props);
   }
 }
 
@@ -44,10 +61,9 @@ export async function customMiddleware({
 async function handleTicTacToeMove({
   fullMessage,
   isGroup,
-  prefix,
   remoteJid,
   sendReply,
-  userLid,
+  getPlayer,
 }) {
   const text = (fullMessage || "").trim();
 
@@ -59,14 +75,17 @@ async function handleTicTacToeMove({
     return;
   }
 
-  const result = playMove(remoteJid, userLid, Number(text));
+  const player = await getPlayer();
+  if (!player) return;
+
+  const result = playMove(remoteJid, player, Number(text));
 
   if (!result) {
     return;
   }
 
   await sendReply(
-    withPrefix(result.error || result.text, prefix),
+    withPrefix(result.error || result.text, getPrefix(remoteJid)),
     result.mentions
   );
 }
@@ -79,9 +98,13 @@ async function handleRpsVsBotChoice({
   isGroup,
   remoteJid,
   sendReply,
-  userLid,
+  getPlayer,
 }) {
   if (!isGroup || !fullMessage || fullMessage.length > 12) {
+    return;
+  }
+
+  if (!getRpsGame(remoteJid)?.vsBot) {
     return;
   }
 
@@ -89,7 +112,10 @@ async function handleRpsVsBotChoice({
     return;
   }
 
-  const answer = await playVsBotInGroup(remoteJid, userLid, fullMessage);
+  const player = await getPlayer();
+  if (!player) return;
+
+  const answer = await playVsBotInGroup(remoteJid, player, fullMessage);
 
   if (answer) {
     await sendReply(answer);
@@ -102,10 +128,9 @@ async function handleRpsVsBotChoice({
 async function handleCheckersMove({
   fullMessage,
   isGroup,
-  prefix,
   remoteJid,
   sendReply,
-  userLid,
+  getPlayer,
 }) {
   if (!isGroup || !looksLikeMove(fullMessage) || !getCheckersGame(remoteJid)) {
     return;
@@ -115,14 +140,52 @@ async function handleCheckersMove({
     return;
   }
 
-  const result = playCheckersMove(remoteJid, userLid, fullMessage);
+  const player = await getPlayer();
+  if (!player) return;
+
+  const result = playCheckersMove(remoteJid, player, fullMessage);
 
   if (!result) {
     return;
   }
 
   await sendReply(
-    withCheckersPrefix(result.error || result.text, prefix),
+    withCheckersPrefix(result.error || result.text, getPrefix(remoteJid)),
+    result.mentions
+  );
+}
+
+/**
+ * Forca: quem iniciou a partida manda uma letra sozinha no grupo.
+ */
+async function handleHangmanLetter({
+  fullMessage,
+  isGroup,
+  remoteJid,
+  sendReply,
+  getPlayer,
+}) {
+  const text = (fullMessage || "").trim();
+
+  if (!isGroup || [...text].length !== 1 || !getHangmanGame(remoteJid)) {
+    return;
+  }
+
+  if (!isActiveGroup(remoteJid)) {
+    return;
+  }
+
+  const player = await getPlayer();
+  if (!player) return;
+
+  const result = guessLetter(remoteJid, player, text);
+
+  if (!result) {
+    return;
+  }
+
+  await sendReply(
+    withHangmanPrefix(result.error || result.text, getPrefix(remoteJid)),
     result.mentions
   );
 }
