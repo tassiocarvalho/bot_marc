@@ -3,7 +3,7 @@ import { PREFIX } from "../../config.js";
 export default {
   name: "hide-tag",
   description: "Este comando marcará todos do grupo",
-  commands: ["hide-tag", "to-tag", "marcar", "marca", "tag-all"],
+  commands: ["hide-tag", "hidtag", "hide", "to-tag", "marcar", "marca", "tag-all", "todos"],
   usage: `${PREFIX}hidetag motivo
 
 ou
