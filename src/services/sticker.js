@@ -122,11 +122,10 @@ export async function processAnimatedSticker(inputPath, metadata) {
 
 const STICKER_SIDE = 512;
 const MAX_ANIMATED_STICKER_BYTES = 500 * 1024;
-const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
 /**
- * Recria a figurinha num quadro 1:1 (fundo transparente, sem distorcer),
- * aplicando os novos metadados. Usado pelo rename.
+ * Recria a figurinha em 1:1 esticando/achatando a imagem até preencher o
+ * quadrado (igual ao /s), aplicando os novos metadados. Usado pelo rename.
  *
  * - Estática: sempre 512x512.
  * - Animada: lado = maior dimensão (máx. 512), sem ampliar à toa para não
@@ -142,8 +141,7 @@ export async function recreateSquareSticker(inputPath, metadata) {
   if (pages < 2) {
     const buffer = await sharp(inputPath)
       .resize(STICKER_SIDE, STICKER_SIDE, {
-        fit: "contain",
-        background: TRANSPARENT,
+        fit: "fill",
       })
       .webp({ quality: 90 })
       .toBuffer();
@@ -160,7 +158,7 @@ export async function recreateSquareSticker(inputPath, metadata) {
 
   for (const quality of [80, 60, 40, 25]) {
     buffer = await sharp(inputPath, { animated: true })
-      .resize(side, side, { fit: "contain", background: TRANSPARENT })
+      .resize(side, side, { fit: "fill" })
       .webp({ quality, loop: info.loop ?? 0, delay: info.delay, effort: 4 })
       .toBuffer();
 
@@ -244,7 +242,7 @@ export async function createSticker(paramsHandler) {
       }
 
       await new Promise((resolve, reject) => {
-        const cmd = `ffmpeg -i "${inputPath}" -vf "scale=512:512:force_original_aspect_ratio=decrease" -f webp -quality 90 "${outputTempPath}"`;
+        const cmd = `ffmpeg -i "${inputPath}" -vf "scale=512:512" -f webp -quality 90 "${outputTempPath}"`;
 
         exec(cmd, (error, _, stderr) => {
           if (error) {
