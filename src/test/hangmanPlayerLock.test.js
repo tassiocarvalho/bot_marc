@@ -11,6 +11,7 @@ import {
   HANGMAN_LEVELS,
   joinGame,
   leaveGame,
+  levelPrompt,
   normalize,
   startGame,
   stopGame,
@@ -26,7 +27,7 @@ const STRANGER = "444@lid";
 const BOT = "999@lid";
 
 const start = (player, groupId = GROUP) =>
-  startGame({ groupId, starter: player, category: null, send: async () => {} });
+  startGame({ groupId, starter: player, category: null, level: "facil", send: async () => {} });
 
 describe("forca: partidas por jogador", () => {
   afterEach(() => {
@@ -258,6 +259,23 @@ describe("forca: níveis de dificuldade", () => {
     for (const rule of ["hit", "miss", "wordBonus", "wrongWord", "finishBonus"]) {
       assert.ok(easy[rule] < medium[rule] && medium[rule] < hard[rule], rule);
     }
+  });
+
+  it("pede a dificuldade sem abrir partida", () => {
+    const { text } = levelPrompt(GROUP, ALICE, "");
+
+    for (const level of LEVELS) {
+      assert.ok(text.includes(`{prefix}forca ${level}*`), level);
+    }
+    assert.equal(getGame(GROUP, ALICE), null);
+    assert.ok(levelPrompt(GROUP, ALICE, "animal").text.includes("{prefix}forca animal dificil*"));
+  });
+
+  it("não pede a dificuldade para quem já está em uma forca", () => {
+    startAt("facil");
+
+    assert.match(levelPrompt(GROUP, ALICE, "").error, /já está em uma forca/);
+    assert.match(levelPrompt(OTHER_GROUP, ALICE, "").error, /outro grupo/);
   });
 
   it("reconhece o nível com ou sem acento", () => {

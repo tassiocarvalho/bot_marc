@@ -17,6 +17,7 @@ import {
   guessWord,
   joinGame,
   leaveGame,
+  levelPrompt,
   levelsText,
   startGame,
   stopGame,
@@ -37,10 +38,9 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 function helpText(prefix) {
   return `🪢 *JOGO DA FORCA* — ${totalWords()} palavras!
 
-▶️ *${prefix}forca* — categoria e nível aleatórios
-🎚️ *${prefix}forca dificil* — escolhe o nível (facil, medio, dificil)
-📂 *${prefix}forca animal* — escolhe a categoria
-🎯 *${prefix}forca animal dificil* — categoria e nível
+▶️ *${prefix}forca* — mostra os níveis para escolher
+🎚️ *${prefix}forca dificil* — categoria sorteada, no nível escolhido (facil, medio, dificil)
+🎯 *${prefix}forca animal dificil* — escolhe a categoria e o nível
 📋 *${prefix}forca categorias* · 📊 *${prefix}forca niveis*
 🔤 Mande *uma letra* no grupo pra chutar
 👤 Cada pessoa pode abrir a própria forca, ao mesmo tempo
@@ -181,6 +181,10 @@ export default {
           `Categoria não encontrada! Veja: ${prefix}forca categorias\nNíveis: facil, medio, dificil`
         );
       }
+    }
+
+    if (!level) {
+      return answer(levelPrompt(remoteJid, player, categoryText));
     }
 
     return answer(startGame({ groupId: remoteJid, starter: player, category, level, send }));

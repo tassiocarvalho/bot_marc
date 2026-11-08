@@ -193,14 +193,30 @@ function busyText(groupId, player) {
     : "Você já está em uma forca em outro grupo! Termine por lá ou espere 3 minutos sem jogar.";
 }
 
+/** Pede o nível antes de começar. Quem já está em uma forca recebe o aviso. */
+export function levelPrompt(groupId, player, categoryText) {
+  if (games.has(player)) {
+    return { error: busyText(groupId, player), mentions: [] };
+  }
+
+  const command = ["{prefix}forca", categoryText].filter(Boolean).join(" ");
+  const options = Object.entries(HANGMAN_LEVELS)
+    .map(([key, { emoji }]) => `${emoji} *${command} ${key}*`)
+    .join("\n");
+
+  return {
+    text: `🪢 *JOGO DA FORCA*\n🎚️ Escolha a dificuldade:\n\n${options}\n\nQuanto mais difícil, mais pontos você ganha e perde.\n📊 Detalhes: *{prefix}forca niveis*`,
+    mentions: [],
+  };
+}
+
 export function startGame({ groupId, starter, category, level, send }) {
   if (games.has(starter)) {
     return { error: busyText(groupId, starter), mentions: [] };
   }
 
   const chosenCategory = category || pick(HANGMAN_CATEGORIES);
-  const chosenLevel = level || pick(Object.keys(HANGMAN_LEVELS));
-  const list = HANGMAN_WORDS[chosenCategory][chosenLevel];
+  const list = HANGMAN_WORDS[chosenCategory][level];
   const recent = recentWords.get(groupId) || [];
   const options = list.filter((w) => !recent.includes(w));
   const word = pick(options.length ? options : list);
@@ -212,7 +228,7 @@ export function startGame({ groupId, starter, category, level, send }) {
     groupId,
     word,
     category: chosenCategory,
-    level: chosenLevel,
+    level,
     guessed: new Set(),
     wrong: [],
     lives: MAX_LIVES,
