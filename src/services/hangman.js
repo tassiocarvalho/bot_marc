@@ -2,10 +2,11 @@
  * Motor do Jogo da Forca para grupos.
  *
  * - Cada pessoa joga a própria partida, e várias rolam ao mesmo tempo no grupo.
+ * - Ninguém fica em duas partidas ao mesmo tempo, nem em grupos diferentes.
  * - Quem quiser jogar junto entra na partida de outra pessoa. Abrir para o grupo
  *   todo não serve: letras soltas da conversa ("k", "s", "n") gastariam vidas.
- * - Letra certa: +1 ponto por ocorrência. Letra errada: -1 ponto e -1 vida.
- * - Chutar a palavra: acertou = +5 + 1 por letra escondida; errou = -2 pontos e -2 vidas.
+ * - Os pontos ganhos e perdidos dependem do nível (HANGMAN_LEVELS).
+ * - Letra errada custa 1 vida; chute errado custa 2.
  * - Acentos e Ç são ignorados no chute (A revela Á, Ã, Â...).
  *
  * @author bot_marc
@@ -17,17 +18,27 @@ import { HANGMAN_CATEGORIES, HANGMAN_WORDS } from "./hangman-words.js";
 const MAX_LIVES = 6;
 const IDLE_TIMEOUT_MS = 3 * 60 * 1000;
 const RECENT_LIMIT = 80;
+const BOARD_OWNER = /Jogador(?:es)?:\* @(\d+)/;
+
+// hit: por letra certa · miss: letra errada · wordBonus: acertar a palavra
+// wrongWord: chute errado · finishBonus: completar a última letra
+export const HANGMAN_LEVELS = {
+  facil: { label: "Fácil", emoji: "🟢", hit: 1, miss: 1, wordBonus: 5, wrongWord: 2, finishBonus: 3 },
+  medio: { label: "Médio", emoji: "🟡", hit: 2, miss: 2, wordBonus: 10, wrongWord: 3, finishBonus: 6 },
+  dificil: { label: "Difícil", emoji: "🔴", hit: 3, miss: 3, wordBonus: 20, wrongWord: 5, finishBonus: 10 },
+};
 
 const FACES = ["💀", "😱", "😰", "😨", "😟", "😐", "🙂"];
 
-/** @type {Map<string, any>} partida em que cada jogador está, por grupo */
+/** @type {Map<string, any>} partida em que cada jogador está (só uma, em qualquer grupo) */
 const games = new Map();
 /** @type {Map<string, string[]>} palavras recentes por grupo (evita repetir) */
 const recentWords = new Map();
 
-const gameKey = (groupId, player) => `${groupId}|${player}`;
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const mention = (player) => `@${onlyNumbers(player)}`;
+const rules = (game) => HANGMAN_LEVELS[game.level];
+const wordsIn = (category) => Object.values(HANGMAN_WORDS[category]).flat();
 
 /** Troca o marcador {prefix} pelo prefixo real do grupo. */
 export const withPrefix = (text, prefix) => text.replaceAll("{prefix}", prefix);
@@ -51,19 +62,41 @@ export function findCategory(text) {
         .replace(/[^a-z ]/g, "")
         .trim()
         .split(" ")
+        // Sem esse corte, o "e" de "Roupa e acessório" casa com "escola".
+        .filter((part) => part.length > 2)
         .some((part) => part.startsWith(wanted) || wanted.startsWith(part))
     ) || null
   );
 }
 
+/** Reconhece o nível digitado (com ou sem acento). */
+export function findLevel(text) {
+  const wanted = normalize(text);
+
+  return Object.hasOwn(HANGMAN_LEVELS, wanted) ? wanted : null;
+}
+
+export function levelsText() {
+  return Object.values(HANGMAN_LEVELS)
+    .map(
+      (level) => `${level.emoji} *${level.label}*
+✅ Letra certa: +${level.hit} por vez que aparece
+❌ Letra errada: -${level.miss}
+🎯 Acertou a palavra: +${level.wordBonus} + ${level.hit} por letra escondida
+💥 Errou o chute: -${level.wrongWord}
+🏁 Completou a última letra: +${level.finishBonus}`
+    )
+    .join("\n\n");
+}
+
 export function categoriesText() {
   return HANGMAN_CATEGORIES.map(
-    (category) => `${category} _(${HANGMAN_WORDS[category].length})_`
+    (category) => `${category} _(${wordsIn(category).length})_`
   ).join("\n");
 }
 
 export const totalWords = () =>
-  Object.values(HANGMAN_WORDS).reduce((sum, list) => sum + list.length, 0);
+  HANGMAN_CATEGORIES.reduce((sum, category) => sum + wordsIn(category).length, 0);
 
 function drawGallows(lives) {
   const errors = MAX_LIVES - lives;
@@ -108,9 +141,9 @@ function boardText(game, narration = "") {
 
   return `🪢 *JOGO DA FORCA*\n🎮 *${game.players.length > 1 ? "Jogadores" : "Jogador"}:* ${game.players.map(mention).join(", ")}\n📂 *Dica:* ${game.category} · 🔤 ${lettersCount(
     game.word
-  )} letras\n${narration ? `\n${narration}\n` : ""}\n\`\`\`\n${drawGallows(
+  )} letras\n🎚️ *Nível:* ${rules(game).emoji} ${rules(game).label}\n${narration ? `\n${narration}\n` : ""}\n\`\`\`\n${drawGallows(
     game.lives
-  )}\n\n${maskedWord(game)}\n\`\`\`\n${livesBar(game.lives)}${wrong}\n\n👉 Mande *uma letra* no grupo\n🎯 Sabe a palavra? *{prefix}forca chute PALAVRA*\n👥 Jogar junto: *{prefix}forca entrar ${mention(game.starter)}*`;
+  )}\n\n${maskedWord(game)}\n\`\`\`\n${livesBar(game.lives)}${wrong}\n\n👉 Mande *uma letra* no grupo\n🎯 Sabe a palavra? *{prefix}forca chute PALAVRA*\n👥 Quer jogar junto? Responda com *{prefix}forca entrar*`;
 }
 
 function scoreboard(game) {
@@ -126,21 +159,19 @@ function scoreboard(game) {
 // Inclui quem saiu no meio, para o placar marcar todo mundo que pontuou.
 const allPlayers = (game) => [...new Set([...game.players, ...Object.keys(game.scores)])];
 
-function closeGame(groupId, game) {
+function closeGame(game) {
   clearTimeout(game.timer);
 
   for (const player of game.players) {
-    games.delete(gameKey(groupId, player));
+    games.delete(player);
   }
 }
 
-function touch(groupId, game) {
-  const key = gameKey(groupId, game.starter);
-
+function touch(game) {
   clearTimeout(game.timer);
   game.timer = setTimeout(async () => {
-    if (games.get(key) !== game) return;
-    closeGame(groupId, game);
+    if (games.get(game.starter) !== game) return;
+    closeGame(game);
     await game
       .send(
         `💤 A forca ficou abandonada...\nA palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
@@ -151,21 +182,37 @@ function touch(groupId, game) {
 }
 
 export function getGame(groupId, player) {
-  return games.get(gameKey(groupId, player)) || null;
+  const game = games.get(player);
+
+  return game?.groupId === groupId ? game : null;
 }
 
-export function startGame({ groupId, starter, category, send }) {
+function busyText(groupId, player) {
+  return games.get(player).groupId === groupId
+    ? "Você já está em uma forca! Para sair: *{prefix}forca parar*"
+    : "Você já está em uma forca em outro grupo! Termine por lá ou espere 3 minutos sem jogar.";
+}
+
+export function startGame({ groupId, starter, category, level, send }) {
+  if (games.has(starter)) {
+    return { error: busyText(groupId, starter), mentions: [] };
+  }
+
   const chosenCategory = category || pick(HANGMAN_CATEGORIES);
+  const chosenLevel = level || pick(Object.keys(HANGMAN_LEVELS));
+  const list = HANGMAN_WORDS[chosenCategory][chosenLevel];
   const recent = recentWords.get(groupId) || [];
-  const options = HANGMAN_WORDS[chosenCategory].filter((w) => !recent.includes(w));
-  const word = pick(options.length ? options : HANGMAN_WORDS[chosenCategory]);
+  const options = list.filter((w) => !recent.includes(w));
+  const word = pick(options.length ? options : list);
 
   recent.push(word);
   recentWords.set(groupId, recent.slice(-RECENT_LIMIT));
 
   const game = {
+    groupId,
     word,
     category: chosenCategory,
+    level: chosenLevel,
     guessed: new Set(),
     wrong: [],
     lives: MAX_LIVES,
@@ -177,8 +224,8 @@ export function startGame({ groupId, starter, category, send }) {
     timer: null,
   };
 
-  games.set(gameKey(groupId, starter), game);
-  touch(groupId, game);
+  games.set(starter, game);
+  touch(game);
 
   return { text: boardText(game, "🎬 *Nova palavra sorteada!* Valendo pontos!"), mentions: [starter] };
 }
@@ -186,21 +233,50 @@ export function startGame({ groupId, starter, category, send }) {
 export function stopGame(groupId, player) {
   const game = getGame(groupId, player);
   if (!game) return null;
-  closeGame(groupId, game);
+  closeGame(game);
   return {
     text: `🛑 Forca encerrada. A palavra era: *${game.word.toUpperCase()}*${scoreboard(game)}`,
     mentions: allPlayers(game),
   };
 }
 
-/** Coloca a pessoa na partida de outra. Retorna null se a outra não tiver partida. */
-export function joinGame(groupId, player, owner) {
-  const game = getGame(groupId, owner);
-  if (!game) return null;
+/**
+ * Coloca a pessoa em uma partida do grupo. Vale, nesta ordem: o tabuleiro
+ * respondido, a pessoa marcada ou a única partida aberta.
+ *
+ * @param {string} groupId
+ * @param {string} player
+ * @param {{target?: string | null, quotedText?: string}} choice
+ */
+export function joinGame(groupId, player, { target, quotedText }) {
+  if (games.has(player)) {
+    return { error: busyText(groupId, player), mentions: [] };
+  }
+
+  const open = [...new Set(games.values())].filter((item) => item.groupId === groupId);
+  const boardOwner = quotedText?.match(BOARD_OWNER)?.[1];
+  const boardGame = boardOwner && open.find((item) => onlyNumbers(item.starter) === boardOwner);
+  const game =
+    boardGame || (target ? getGame(groupId, target) : open.length === 1 ? open[0] : null);
+
+  if (!game) {
+    if (target) return { error: "Essa pessoa não tem forca aberta.", mentions: [] };
+
+    if (!open.length) {
+      return { error: "Não tem nenhuma forca aberta. Comece com *{prefix}forca*", mentions: [] };
+    }
+
+    return {
+      error: `Tem mais de uma forca aberta! Responda ao tabuleiro ou marque quem abriu:\n${open
+        .map((item) => mention(item.starter))
+        .join("\n")}`,
+      mentions: open.map((item) => item.starter),
+    };
+  }
 
   game.players.push(player);
-  games.set(gameKey(groupId, player), game);
-  touch(groupId, game);
+  games.set(player, game);
+  touch(game);
 
   return {
     text: boardText(game, `🤝 ${mention(player)} entrou na partida!`),
@@ -214,7 +290,7 @@ export function leaveGame(groupId, player) {
   if (!game || game.starter === player) return null;
 
   game.players = game.players.filter((current) => current !== player);
-  games.delete(gameKey(groupId, player));
+  games.delete(player);
 
   return {
     text: `👋 ${mention(player)} saiu da forca de ${mention(game.starter)}.`,
@@ -227,7 +303,7 @@ function addScore(game, player, points) {
 }
 
 function finish(groupId, game, won, narration, winner) {
-  closeGame(groupId, game);
+  closeGame(game);
   addHangmanScores(groupId, game.scores, won ? winner : null);
 
   const ending = won
@@ -255,7 +331,7 @@ export function guessLetter(groupId, player, rawLetter) {
   const letter = normalize(rawLetter);
   if (!/^[a-z]$/.test(letter)) return null;
 
-  touch(groupId, game);
+  touch(game);
 
   if (game.guessed.has(letter) || game.wrong.includes(letter)) {
     return { error: `🔁 A letra *${letter.toUpperCase()}* já foi! Tenta outra.`, mentions: [] };
@@ -263,17 +339,21 @@ export function guessLetter(groupId, player, rawLetter) {
 
   const hits = [...game.word].filter((c) => normalize(c) === letter).length;
 
+  const { hit, miss, finishBonus } = rules(game);
+
   if (hits) {
+    const points = hits * hit;
+
     game.guessed.add(letter);
-    addScore(game, player, hits);
+    addScore(game, player, points);
 
     const narration = `✅ ${mention(player)} acertou o *${letter.toUpperCase()}*${
       hits > 1 ? ` — ${hits} vezes! 🔥` : "!"
-    } (+${hits})`;
+    } (+${points})`;
 
     if (!hiddenCount(game)) {
-      addScore(game, player, 3);
-      return finish(groupId, game, true, `${narration}\n🏁 Última letra! (+3 bônus)`, player);
+      addScore(game, player, finishBonus);
+      return finish(groupId, game, true, `${narration}\n🏁 Última letra! (+${finishBonus} bônus)`, player);
     }
 
     return { text: boardText(game, narration), mentions: game.players };
@@ -281,9 +361,9 @@ export function guessLetter(groupId, player, rawLetter) {
 
   game.wrong.push(letter);
   game.lives -= 1;
-  addScore(game, player, -1);
+  addScore(game, player, -miss);
 
-  const narration = `❌ ${mention(player)} errou: não tem *${letter.toUpperCase()}*! (-1)${
+  const narration = `❌ ${mention(player)} errou: não tem *${letter.toUpperCase()}*! (-${miss})${
     game.lives === 1 ? "\n😱 *ÚLTIMA VIDA!* Pensa bem!" : ""
   }`;
 
@@ -299,12 +379,13 @@ export function guessWord(groupId, player, text) {
   const game = getGame(groupId, player);
   if (!game) return null;
 
-  touch(groupId, game);
+  touch(game);
 
   const attempt = normalize(text).replace(/\s+/g, "-");
+  const { hit, wordBonus, wrongWord } = rules(game);
 
   if (attempt === normalize(game.word)) {
-    const bonus = 5 + hiddenCount(game);
+    const bonus = wordBonus + hiddenCount(game) * hit;
     addScore(game, player, bonus);
     for (const c of game.word) if (isLetter(c)) game.guessed.add(normalize(c));
     return finish(
@@ -317,9 +398,9 @@ export function guessWord(groupId, player, text) {
   }
 
   game.lives = Math.max(0, game.lives - 2);
-  addScore(game, player, -2);
+  addScore(game, player, -wrongWord);
 
-  const narration = `💥 ${mention(player)} chutou *${text.toUpperCase()}*... e errou feio! (-2 vidas, -2 pts)`;
+  const narration = `💥 ${mention(player)} chutou *${text.toUpperCase()}*... e errou feio! (-2 vidas, -${wrongWord} pts)`;
 
   if (game.lives <= 0) return finish(groupId, game, false, narration, null);
 
@@ -341,7 +422,7 @@ export function useHint(groupId, player) {
   game.guessed.add(letter);
   game.hintUsed = true;
   game.lives -= 1;
-  touch(groupId, game);
+  touch(game);
 
   return {
     text: boardText(game, `💡 ${mention(player)} pediu dica: a letra *${letter.toUpperCase()}* foi revelada! (-1 vida)`),

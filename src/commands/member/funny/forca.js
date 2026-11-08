@@ -11,11 +11,13 @@ import {
   categoriesText,
   describeGame,
   findCategory,
+  findLevel,
   getGame,
   guessLetter,
   guessWord,
   joinGame,
   leaveGame,
+  levelsText,
   startGame,
   stopGame,
   totalWords,
@@ -35,24 +37,26 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 function helpText(prefix) {
   return `🪢 *JOGO DA FORCA* — ${totalWords()} palavras!
 
-▶️ *${prefix}forca* — palavra aleatória
+▶️ *${prefix}forca* — categoria e nível aleatórios
+🎚️ *${prefix}forca dificil* — escolhe o nível (facil, medio, dificil)
 📂 *${prefix}forca animal* — escolhe a categoria
-📋 *${prefix}forca categorias*
+🎯 *${prefix}forca animal dificil* — categoria e nível
+📋 *${prefix}forca categorias* · 📊 *${prefix}forca niveis*
 🔤 Mande *uma letra* no grupo pra chutar
 👤 Cada pessoa pode abrir a própria forca, ao mesmo tempo
-👥 *${prefix}forca entrar @fulano* — joga a mesma palavra junto
+👥 *${prefix}forca entrar* — joga a mesma palavra junto (responda ao tabuleiro ou marque quem abriu)
+☝️ Cada pessoa só fica em uma forca por vez
 🚪 *${prefix}forca parar* — quem entrou sai; quem abriu encerra
 🎯 *${prefix}forca chute PALAVRA* — arrisca a palavra
 💡 *${prefix}forca dica* — revela uma letra (custa 1 vida)
 👀 *${prefix}forca status* · 🛑 *${prefix}forca parar*
 🏆 *${prefix}forca rank*
 
-📜 *Pontos:*
-✅ Letra certa: +1 por vez que aparece
-❌ Letra errada: -1 e perde 1 vida (são 6 ❤️)
-🎯 Acertou a palavra: +5 + 1 por letra escondida
-💥 Errou o chute: -2 e perde 2 vidas
-🏁 Quem completar a última letra: +3`;
+❤️ São 6 vidas: letra errada tira 1, chute errado tira 2.
+
+📜 *Pontos por nível:*
+
+${levelsText()}`;
 }
 
 export default {
@@ -63,7 +67,7 @@ export default {
   /**
    * @param {CommandHandleProps} props
    */
-  handle: async ({ fullArgs, isGroup, prefix, remoteJid, sendReply, sendText, socket, webMessage }) => {
+  handle: async ({ fullArgs, isGroup, prefix, remoteJid, replyText, sendReply, sendText, socket, webMessage }) => {
     if (!isGroup) {
       throw new WarningError("A forca só funciona em grupos!");
     }
@@ -96,6 +100,13 @@ export default {
       case "categoria":
         return sendReply(`📂 *CATEGORIAS DA FORCA*\n\n${categoriesText()}\n\nEx.: *${prefix}forca fruta*`);
 
+      case "niveis":
+      case "nivel":
+      case "níveis":
+      case "nível":
+      case "dificuldades":
+        return sendReply(`🎚️ *NÍVEIS DA FORCA*\n\n${levelsText()}\n\nEx.: *${prefix}forca dificil*`);
+
       case "rank":
       case "ranking":
       case "top": {
@@ -114,14 +125,8 @@ export default {
 
       case "entrar":
       case "juntar": {
-        if (game) {
-          throw new WarningError(`Você já está em uma forca! Para sair: ${prefix}forca parar`);
-        }
-        const owner = await getTargetPlayerId(socket, webMessage, args[1]);
-        if (!owner) throw new WarningError(`De quem é a forca? Ex.: ${prefix}forca entrar @fulano`);
-        const joined = joinGame(remoteJid, player, owner);
-        if (!joined) throw new WarningError("Essa pessoa não tem forca aberta.");
-        return reply(joined);
+        const target = await getTargetPlayerId(socket, webMessage, args[1]);
+        return answer(joinGame(remoteJid, player, { target, quotedText: replyText }));
       }
 
       case "chute":
@@ -154,20 +159,30 @@ export default {
     }
 
     if (game) {
+      // Sem isso, "/forca dificil" viraria um chute errado e tiraria 2 vidas.
+      if (findLevel(action)) {
+        throw new WarningError(`Você já está em uma forca! Para sair: ${prefix}forca parar`);
+      }
+
       // "/forca a" chuta letra; "/forca cachorro" chuta palavra.
       if (action && [...action].length === 1) return answer(guessLetter(remoteJid, player, action));
       if (action) return answer(guessWord(remoteJid, player, fullArgs));
       return reply(describeGame(remoteJid, player));
     }
 
+    const level = args.map(findLevel).find(Boolean) || null;
+    const categoryText = args.filter((word) => !findLevel(word)).join(" ");
+
     let category = null;
-    if (action) {
-      category = findCategory(fullArgs);
+    if (categoryText) {
+      category = findCategory(categoryText);
       if (!category) {
-        throw new WarningError(`Categoria não encontrada! Veja: ${prefix}forca categorias`);
+        throw new WarningError(
+          `Categoria não encontrada! Veja: ${prefix}forca categorias\nNíveis: facil, medio, dificil`
+        );
       }
     }
 
-    return reply(startGame({ groupId: remoteJid, starter: player, category, send }));
+    return answer(startGame({ groupId: remoteJid, starter: player, category, level, send }));
   },
 };
