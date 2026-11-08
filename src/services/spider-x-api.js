@@ -372,30 +372,6 @@ export async function updatePlanUser(email, plan) {
   return data;
 }
 
-export async function toGif(buffer) {
-  if (!buffer) {
-    throw new Error("Você precisa informar o buffer do arquivo!");
-  }
-
-  const spiderApiToken = requireSpiderApiToken();
-
-  const formData = new FormData();
-  const blob = new Blob([buffer], { type: "image/webp" });
-  formData.append("file", blob, "sticker.webp");
-
-  const { data } = await axios.post(
-    `${SPIDER_API_BASE_URL}/utilities/to-gif?api_key=${spiderApiToken}`,
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    },
-  );
-
-  return data.url;
-}
-
 export async function removeBg(
   buffer,
   mimeType = "image/png",

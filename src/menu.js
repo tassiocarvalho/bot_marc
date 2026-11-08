@@ -88,6 +88,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}raw-message
 ▢ • ${prefix}rename
 ▢ • ${prefix}sticker
+▢ • ${prefix}to-gif
 ▢ • ${prefix}to-image
 ▢ • ${prefix}to-mp3
 ▢
@@ -105,6 +106,7 @@ downloads EM MANUTENÇÃO
 ▢ • ${prefix}beijar
 ▢ • ${prefix}dado
 ▢ • ${prefix}dama ♟️
+▢ • ${prefix}forca 🪢
 ▢ • ${prefix}jantar
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar

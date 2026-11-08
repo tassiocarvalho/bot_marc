@@ -1,14 +1,13 @@
-import fs from "fs/promises";
 import { PREFIX } from "../../config.js";
 import { InvalidParameterError } from "../../errors/index.js";
-import { toGif } from "../../services/spider-x-api.js";
-import { getRandomName } from "../../utils/index.js";
+import { Ffmpeg } from "../../services/ffmpeg.js";
+import { getRandomName, removeFileIfExists } from "../../utils/index.js";
 
 export default {
   name: "togif",
   description: "Transformo figurinhas animadas em GIF",
   commands: ["togif", "gif"],
-  usage: `${PREFIX}togif (marque a figurinha)`,
+  usage: `${PREFIX}togif (marque a figurinha) ou ${PREFIX}togif (responda a figurinha)`,
   /**
    * @param {CommandHandleProps} props
    */
@@ -18,7 +17,7 @@ export default {
     webMessage,
     sendWaitReact,
     sendSuccessReact,
-    sendGifFromURL,
+    sendGifFromFile,
   }) => {
     if (!isSticker) {
       throw new InvalidParameterError("Você precisa enviar uma figurinha!");
@@ -26,14 +25,18 @@ export default {
 
     await sendWaitReact();
 
-    const stickerPath = await downloadSticker(webMessage, getRandomName());
+    const ffmpeg = new Ffmpeg();
+    let inputPath = null;
+    let outputPath = null;
 
-    const stickerBuffer = await fs.readFile(stickerPath);
-
-    const gifUrl = await toGif(stickerBuffer);
-
-    await sendSuccessReact();
-
-    await sendGifFromURL(gifUrl);
+    try {
+      inputPath = await downloadSticker(webMessage, getRandomName());
+      outputPath = await ffmpeg.convertAnimatedStickerToGif(inputPath);
+      await sendSuccessReact();
+      await sendGifFromFile(outputPath);
+    } finally {
+      removeFileIfExists(inputPath);
+      removeFileIfExists(outputPath);
+    }
   },
 };
