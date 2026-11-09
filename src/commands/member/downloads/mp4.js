@@ -35,7 +35,7 @@ export default {
   /**
    * @param {CommandHandleProps} props
    */
-  handle: withDownloadQueue(async ({
+  handle: withDownloadQueue("mp4", async ({
     sendVideoFromFile,
     fullArgs,
     sendWaitReact,

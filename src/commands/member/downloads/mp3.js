@@ -35,7 +35,7 @@ export default {
   /**
    * @param {CommandHandleProps} props
    */
-  handle: withDownloadQueue(async ({
+  handle: withDownloadQueue("mp3", async ({
     sendAudioFromFile,
     sendImageFromURL,
     sendReply,

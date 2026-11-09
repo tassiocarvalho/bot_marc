@@ -14,3 +14,4 @@ database/pets/
 
 # Contagem de mensagens do /rank
 database/message-ranking.json
+database/download-queue.json

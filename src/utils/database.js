@@ -33,6 +33,7 @@ const RPS_FILE = "rps-ranking";
 const CHECKERS_FILE = "checkers-ranking";
 const HANGMAN_FILE = "hangman-ranking";
 const MESSAGE_RANKING_FILE = "message-ranking";
+const DOWNLOAD_QUEUE_FILE = "download-queue";
 
 function createIfNotExists(fullPath, formatIfNotExists = []) {
   if (!fs.existsSync(fullPath)) {
@@ -568,6 +569,14 @@ export function addMessageCounts(pendingByGroup) {
   }
 
   writeJSON(MESSAGE_RANKING_FILE, data, {});
+}
+
+export function getDownloadQueue() {
+  return readJSON(DOWNLOAD_QUEUE_FILE, []);
+}
+
+export function saveDownloadQueue(requests) {
+  writeJSON(DOWNLOAD_QUEUE_FILE, requests, []);
 }
 
 export function getMessageCounts(groupId) {

@@ -8,10 +8,25 @@
  */
 import { onCall } from "./middlewares/onCall.js";
 import { onMessagesUpsert } from "./middlewares/onMesssagesUpsert.js";
+import { connectDownloadQueue } from "./services/download-queue.js";
 import { badMacHandler } from "./utils/badMacHandler.js";
+import { getDownloadQueue, saveDownloadQueue } from "./utils/database.js";
+import { loadCommonFunctions } from "./utils/loadCommonFunctions.js";
 import { errorLog } from "./utils/logger.js";
 
 export function load(socket) {
+  connectDownloadQueue({
+    socket,
+    createProps: (currentSocket, webMessage) =>
+      loadCommonFunctions({ socket: currentSocket, webMessage }),
+    storage: { read: getDownloadQueue, write: saveDownloadQueue },
+    loadCommands: () =>
+      Promise.all([
+        import("./commands/member/downloads/mp3.js"),
+        import("./commands/member/downloads/mp4.js"),
+      ]),
+  });
+
   const safeEventHandler = async (callback, data, eventName) => {
     try {
       await callback(data);

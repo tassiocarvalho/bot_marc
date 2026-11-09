@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { runInDownloadQueue } from "../services/download-queue.js";
+import { EventEmitter } from "node:events";
+import {
+  connectDownloadQueue,
+  runInDownloadQueue,
+  withDownloadQueue,
+} from "../services/download-queue.js";
 
 function deferred() {
   let resolve;
@@ -73,5 +78,57 @@ describe("fila de downloads", () => {
     await assert.rejects(a, /falhou/);
     assert.equal(await b, "b");
     assert.equal(await runInDownloadQueue("a", async () => "de novo", silent), "de novo");
+  });
+
+  // Por último: depois daqui a fila fica ligada a uma conexão de mentira.
+  it("retoma pedidos salvos e usa a conexão atual quando chega a vez", async () => {
+    const first = deferred();
+    const served = [];
+    const saved = [];
+    const newSocket = () => ({ ev: new EventEmitter() });
+    const handler = withDownloadQueue("teste", async (props) => {
+      served.push([props.webMessage.id, props.socket]);
+      if (props.webMessage.id === "antigo") await first.promise;
+    });
+    const options = (socket) => ({
+      socket,
+      createProps: (current, webMessage) => ({ socket: current, webMessage }),
+      storage: {
+        read: () => [
+          { command: "teste", userId: "antigo", webMessage: { id: "antigo" }, queuedAt: Date.now() },
+          { command: "teste", userId: "velho", webMessage: { id: "velho" }, queuedAt: 0 },
+        ],
+        write: (requests) => saved.push(requests.map((request) => request.webMessage.id)),
+      },
+      loadCommands: async () => {},
+    });
+
+    const oldSocket = newSocket();
+    connectDownloadQueue(options(oldSocket));
+    oldSocket.ev.emit("connection.update", { connection: "open" });
+    await tick();
+    assert.deepEqual(served, [["antigo", oldSocket]]);
+
+    const live = handler({
+      fullArgs: "musica",
+      userLid: "vivo",
+      webMessage: { id: "vivo" },
+      sendReply: silent,
+    });
+    await tick();
+    assert.deepEqual(saved.at(-1), ["antigo", "vivo"]);
+
+    oldSocket.ev.emit("connection.update", { connection: "close" });
+    const currentSocket = newSocket();
+    connectDownloadQueue(options(currentSocket));
+    first.resolve();
+    await tick();
+    assert.equal(served.length, 1, "espera a conexão voltar");
+
+    currentSocket.ev.emit("connection.update", { connection: "open" });
+    await live;
+
+    assert.deepEqual(served[1], ["vivo", currentSocket]);
+    assert.deepEqual(saved.at(-1), []);
   });
 });
