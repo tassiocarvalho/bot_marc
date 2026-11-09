@@ -9,6 +9,7 @@
  */
 import { WarningError } from "../errors/index.js";
 import { errorLog } from "../utils/logger.js";
+import { cleanTempDirSafely } from "./temp-cleanup.js";
 
 const MAX_RUNNING = 1;
 const MAX_WAITING = 5;
@@ -123,6 +124,7 @@ async function reportFailure(props, error) {
 function enqueue(request, originalProps, notifyQueued) {
   const job = async () => {
     await waitUntilOnline();
+    cleanTempDirSafely();
 
     const props = link
       ? link.createProps(link.socket, request.webMessage)

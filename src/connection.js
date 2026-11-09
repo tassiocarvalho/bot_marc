@@ -30,6 +30,7 @@ import pino from "pino";
 import { PREFIX, TEMP_DIR } from "./config.js";
 import { load } from "./loader.js";
 import { ensureAllGroupFolders, ensureGroupFolder } from "./services/pet.js";
+import { startTempCleanup } from "./services/temp-cleanup.js";
 import { badMacHandler } from "./utils/badMacHandler.js";
 import { onlyNumbers, question } from "./utils/index.js";
 import {
@@ -46,6 +47,8 @@ const __dirname = path.dirname(__filename);
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
+
+startTempCleanup();
 
 const logger = pino(
   { timestamp: () => `,"time":"${new Date().toJSON()}"` },
