@@ -60,13 +60,20 @@ Adote um gatinho ou cachorrinho, cuide dele e suba no ranking!
 🏆 *${prefix}pet rank*
 💔 *${prefix}pet abandonar confirmar*
 
-📜 *Como ganhar pontos:*
-• Cada cuidado dá pontos e XP, com tempo de espera em horas:
+📜 *Como o pet funciona:*
+• Precisou, ele aceita: com fome come, com sono dorme, sujo toma banho
+• Satisfeito, ele recusa: barriga cheia não come, descansado não dorme
+• 😴 Dorme até encher a energia e, dormindo, gasta bem menos
+• Sem energia ou com muita fome, não brinca nem passeia
+• O pet sente fome, sono e sujeira com o tempo, até offline!
+
+⭐ *Como ganhar pontos:*
+• Cada cuidado dá pontos e XP e volta a render depois de:
    🍗 4h · 🧶 3h · 💕 1h · 🛁 12h · 🌳 6h · 😴 8h
+• Antes disso o cuidado funciona, só não dá pontos
 • Pet com tudo acima de 70% rende *x2* pontos
 • Pet largado (algo em 10% ou menos) rende só metade
 • Subir de nível dá bônus · Nv.5 ganha laço/bandana, Nv.10 coroa 👑
-• O pet sente fome, sono e sujeira com o tempo, até offline!
 
 🐱 Cores de gato: ${colorsOf("gato").join(", ")}
 🐶 Cores de cachorro: ${colorsOf("cachorro").join(", ")}`;
