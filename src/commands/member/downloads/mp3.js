@@ -8,6 +8,7 @@ import {
   PREFIX,
 } from "../../../config.js";
 import { InvalidParameterError, WarningError } from "../../../errors/index.js";
+import { withDownloadQueue } from "../../../services/download-queue.js";
 import {
   downloadFromYouTube,
   findOnYouTube,
@@ -34,7 +35,7 @@ export default {
   /**
    * @param {CommandHandleProps} props
    */
-  handle: async ({
+  handle: withDownloadQueue(async ({
     sendAudioFromFile,
     sendImageFromURL,
     sendReply,
@@ -90,5 +91,5 @@ export default {
     } finally {
       removeFileIfExists(filePath);
     }
-  },
+  }),
 };
