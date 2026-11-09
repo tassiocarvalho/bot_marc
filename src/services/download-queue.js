@@ -12,10 +12,11 @@ import { errorLog } from "../utils/logger.js";
 
 const MAX_RUNNING = 1;
 const MAX_WAITING = 5;
+const MAX_PER_USER = 3;
 const MAX_RESUME_AGE_IN_MILLISECONDS = 60 * 60 * 1000;
 
 const waiting = [];
-const busyUsers = new Set();
+const requestsByUser = new Map();
 const handlers = new Map();
 const savedRequests = new Set();
 let running = 0;
@@ -52,8 +53,8 @@ function releaseSlot() {
  * @returns {Promise<T>}
  */
 export async function runInDownloadQueue(userId, job, notifyQueued, request) {
-  if (userId && busyUsers.has(userId)) {
-    throw new WarningError("Você já tem um download em andamento ou na fila. Aguarde ele terminar!");
+  if (userId && (requestsByUser.get(userId) || 0) >= MAX_PER_USER) {
+    throw new WarningError(`Você já tem ${MAX_PER_USER} downloads na fila. Aguarde um terminar!`);
   }
 
   const isFree = running < MAX_RUNNING;
@@ -62,7 +63,7 @@ export async function runInDownloadQueue(userId, job, notifyQueued, request) {
     throw new WarningError("A fila de downloads está cheia. Tente de novo daqui a pouco!");
   }
 
-  if (userId) busyUsers.add(userId);
+  if (userId) requestsByUser.set(userId, (requestsByUser.get(userId) || 0) + 1);
 
   if (request) {
     savedRequests.add(request);
@@ -86,7 +87,12 @@ export async function runInDownloadQueue(userId, job, notifyQueued, request) {
       releaseSlot();
     }
   } finally {
-    if (userId) busyUsers.delete(userId);
+    if (userId) {
+      const remaining = requestsByUser.get(userId) - 1;
+
+      if (remaining) requestsByUser.set(userId, remaining);
+      else requestsByUser.delete(userId);
+    }
 
     if (request) {
       savedRequests.delete(request);

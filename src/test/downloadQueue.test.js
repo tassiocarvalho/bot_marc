@@ -42,14 +42,28 @@ describe("fila de downloads", () => {
     assert.deepEqual(order, ["a", "b", "c"]);
   });
 
-  it("recusa segundo pedido da mesma pessoa e libera ao terminar", async () => {
+  it("segundo pedido da mesma pessoa entra na fila e roda sozinho", async () => {
     const first = deferred();
     const a = runInDownloadQueue("a", () => first.promise, silent);
-
-    await assert.rejects(runInDownloadQueue("a", async () => {}, silent), /já tem um download/);
+    const second = runInDownloadQueue("a", async () => "segundo", silent);
 
     first.resolve();
     await a;
+    assert.equal(await second, "segundo");
+  });
+
+  it("limita a 3 pedidos por pessoa e libera ao terminar", async () => {
+    const first = deferred();
+    const jobs = [
+      runInDownloadQueue("a", () => first.promise, silent),
+      runInDownloadQueue("a", async () => {}, silent),
+      runInDownloadQueue("a", async () => {}, silent),
+    ];
+
+    await assert.rejects(runInDownloadQueue("a", async () => {}, silent), /já tem 3 downloads/);
+
+    first.resolve();
+    await Promise.all(jobs);
     assert.equal(await runInDownloadQueue("a", async () => "ok", silent), "ok");
   });
 
