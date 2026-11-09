@@ -22,6 +22,7 @@ export default {
   description: "Busco o vídeo no YouTube, por nome ou link, e envio o mp4",
   commands: [
     "mp4",
+    "video",
     "play-video",
     "pv",
     "yt-mp4",
@@ -29,7 +30,7 @@ export default {
     "yt-video",
     "youtube-video",
   ],
-  usage: `${PREFIX}play-video Billie Jean`,
+  usage: `${PREFIX}video Billie Jean`,
   /**
    * @param {CommandHandleProps} props
    */

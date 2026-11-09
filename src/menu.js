@@ -97,7 +97,8 @@ export function menuMessage(groupJid) {
 
 ╭━━⪩ DOWNLOADS ⪨━━
 ▢
-downloads EM MANUTENÇÃO
+▢ • ${prefix}play (sua música aqui)
+▢ • ${prefix}video (seu vídeo aqui)
 ▢
 ╰━━─「🎶」─━━
 
