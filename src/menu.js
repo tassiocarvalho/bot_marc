@@ -109,6 +109,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}dado
 ▢ • ${prefix}dama ♟️
 ▢ • ${prefix}forca 🪢
+▢ • ${prefix}gay 🏳️‍🌈
 ▢ • ${prefix}jantar
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
