@@ -116,6 +116,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}lesbica 👭
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
+▢ • ${prefix}peixe 🎣
 ▢ • ${prefix}pet 🐾
 ▢ • ${prefix}petista 🚩
 ▢ • ${prefix}ppt ✊✋✌️
