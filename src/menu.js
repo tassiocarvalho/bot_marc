@@ -106,14 +106,18 @@ export function menuMessage(groupJid) {
 ▢
 ▢ • ${prefix}abracar
 ▢ • ${prefix}beijar
+▢ • ${prefix}bolsonarista 🇧🇷
+▢ • ${prefix}corno 🐂
 ▢ • ${prefix}dado
 ▢ • ${prefix}dama ♟️
 ▢ • ${prefix}forca 🪢
 ▢ • ${prefix}gay 🏳️‍🌈
 ▢ • ${prefix}jantar
+▢ • ${prefix}lesbica 👭
 ▢ • ${prefix}lutar
 ▢ • ${prefix}matar
 ▢ • ${prefix}pet 🐾
+▢ • ${prefix}petista 🚩
 ▢ • ${prefix}ppt ✊✋✌️
 ▢ • ${prefix}socar
 ▢ • ${prefix}velha ❌⭕
