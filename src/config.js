@@ -56,6 +56,12 @@ export const YTDLP_COOKIES_FILE = process.env.YTDLP_COOKIES_FILE || "";
 // Deixe vazio para nao usar proxy. Aceita a variavel de ambiente YTDLP_PROXY.
 export const YTDLP_PROXY = process.env.YTDLP_PROXY || "";
 
+// cookies.txt de uma conta do Instagram (de preferencia uma conta secundaria)
+// para o /insta. O Instagram costuma pedir login quando o acesso vem de
+// servidor (EC2). Vazio = usa o YTDLP_COOKIES_FILE, se houver, ou tenta sem
+// login. Aceita a variavel de ambiente INSTAGRAM_COOKIES_FILE.
+export const INSTAGRAM_COOKIES_FILE = process.env.INSTAGRAM_COOKIES_FILE || "";
+
 // Plataforma de API's
 export const SPIDER_API_BASE_URL = "https://api.spiderx.com.br/api";
 

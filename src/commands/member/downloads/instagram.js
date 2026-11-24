@@ -1,18 +1,36 @@
+/**
+ * Baixa o vídeo de um reel/post do Instagram com o yt-dlp, de graça, sem
+ * API paga.
+ *
+ * @author bot_marc
+ */
 import { PREFIX } from "../../../config.js";
 import { InvalidParameterError, WarningError } from "../../../errors/index.js";
-import { download } from "../../../services/spider-x-api.js";
-import { errorLog } from "../../../utils/logger.js";
+import { withDownloadQueue } from "../../../services/download-queue.js";
+import {
+  downloadFromInstagram,
+  parseInstagramUrl,
+} from "../../../services/ytdlp.js";
+import { removeFileIfExists } from "../../../utils/index.js";
+
+const MAX_CAPTION_LENGTH = 300;
+
+function shorten(text) {
+  return text.length > MAX_CAPTION_LENGTH
+    ? `${text.slice(0, MAX_CAPTION_LENGTH).trimEnd()}…`
+    : text;
+}
 
 export default {
   name: "instagram",
-  description: "Faço o download de vídeos/reels do Instagram",
+  description: "Baixo vídeos e reels do Instagram",
   commands: ["instagram", "ig", "inst", "insta"],
-  usage: `${PREFIX}instagram https://www.instagram.com/reel/Cx789012345/`,
+  usage: `${PREFIX}insta https://www.instagram.com/reel/Cx789012345/`,
   /**
    * @param {CommandHandleProps} props
    */
-  handle: async ({
-    sendVideoFromURL,
+  handle: withDownloadQueue("instagram", async ({
+    sendVideoFromFile,
     fullArgs,
     sendWaitReact,
     sendSuccessReact,
@@ -20,30 +38,48 @@ export default {
   }) => {
     if (!fullArgs.length) {
       throw new InvalidParameterError(
-        "Você precisa enviar uma URL do Instagram!"
+        "Você precisa enviar o link de um reel ou post do Instagram!",
+      );
+    }
+
+    const url = parseInstagramUrl(fullArgs);
+
+    if (!url) {
+      throw new WarningError(
+        "Esse link não é de um reel ou post do Instagram!",
       );
     }
 
     await sendWaitReact();
 
-    if (!fullArgs.includes("instagram.com")) {
-      throw new WarningError("O link não é do Instagram!");
-    }
+    let filePath = null;
 
     try {
-      const data = await download("instagram", fullArgs);
+      const data = await downloadFromInstagram(url);
 
-      if (!data || !data.url) {
-        await sendErrorReply("Nenhum resultado encontrado!");
-        return;
+      filePath = data.filePath;
+
+      const lines = [];
+
+      if (data.author) {
+        lines.push(`*Autor*: ${data.author}`);
+      }
+
+      if (data.caption) {
+        lines.push(`*Legenda*: ${shorten(data.caption)}`);
       }
 
       await sendSuccessReact();
 
-      await sendVideoFromURL(data.url);
+      await sendVideoFromFile(filePath, lines.join("\n\n"));
     } catch (error) {
-      errorLog(JSON.stringify(error, null, 2));
+      if (error instanceof WarningError) {
+        throw error;
+      }
+
       await sendErrorReply(error.message);
+    } finally {
+      removeFileIfExists(filePath);
     }
-  },
+  }),
 };

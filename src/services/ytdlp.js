@@ -10,6 +10,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  INSTAGRAM_COOKIES_FILE,
   TEMP_DIR,
   YTDLP_COOKIES_FILE,
   YTDLP_PROXY,
@@ -372,4 +373,134 @@ export async function downloadFromYouTube({ url, type }) {
   }
 
   return outputPath;
+}
+
+const INSTAGRAM_HOST = /^(?:(?:www|m)\.)?instagram\.com$|^instagr\.am$/i;
+const INSTAGRAM_MEDIA_PATH = /^\/(?:[\w.]+\/)?(?:reels?|p|tv|share)\//i;
+
+/**
+ * Valida um link do Instagram (reel, post ou IGTV) e devolve ele limpo, sem
+ * os parâmetros de rastreio (?igsh=...). Igual ao YouTube, só o link
+ * remontado chega ao yt-dlp.
+ *
+ * @param {string} input
+ * @returns {string | null}
+ */
+export function parseInstagramUrl(input) {
+  const link = String(input || "").trim().split(/\s+/)[0];
+
+  try {
+    const url = new URL(/^https?:/i.test(link) ? link : `https://${link}`);
+
+    if (!INSTAGRAM_HOST.test(url.hostname)) {
+      return null;
+    }
+
+    if (!INSTAGRAM_MEDIA_PATH.test(url.pathname)) {
+      return null;
+    }
+
+    return `https://www.instagram.com${url.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+function buildInstagramAuthArgs() {
+  const args = [];
+  const cookies = INSTAGRAM_COOKIES_FILE || YTDLP_COOKIES_FILE;
+
+  if (cookies) {
+    if (fs.existsSync(cookies)) {
+      args.push("--cookies", cookies);
+    } else {
+      errorLog(`Arquivo de cookies do Instagram não existe: ${cookies}`);
+    }
+  }
+
+  if (YTDLP_PROXY) {
+    args.push("--proxy", YTDLP_PROXY);
+  }
+
+  return args;
+}
+
+/** Troca a mensagem genérica do yt-dlp por uma que explica o problema. */
+function instagramError(details) {
+  if (/login|log in|rate-limit|rate limit|cookies|checkpoint|401|429/i.test(details)) {
+    return new WarningError(
+      "O Instagram pediu login para liberar esse vídeo. O dono do bot precisa configurar INSTAGRAM_COOKIES_FILE.",
+    );
+  }
+
+  if (/no video formats|There is no video|No video/i.test(details)) {
+    return new WarningError("Esse post não tem vídeo, só foto!");
+  }
+
+  if (/private|not available|404|Unable to extract|doesn't exist/i.test(details)) {
+    return new WarningError(
+      "Não achei esse vídeo. Ele pode ser privado, ter sido apagado ou o link está errado.",
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Baixa o vídeo de um reel/post do Instagram em mp4 na pasta temporária.
+ * Em carrossel, pega o primeiro vídeo.
+ *
+ * @param {string} url link já validado por parseInstagramUrl
+ * @returns {Promise<{filePath: string, author: string, caption: string}>}
+ */
+export async function downloadFromInstagram(url) {
+  const basePath = path.resolve(TEMP_DIR, getRandomName());
+  const outputPath = `${basePath}.mp4`;
+
+  let output;
+
+  try {
+    output = await runYtDlp([
+      ...buildInstagramAuthArgs(),
+      "--playlist-items",
+      "1",
+      "--force-ipv4",
+      "--no-warnings",
+      "--no-progress",
+      "--format",
+      [
+        `b[vcodec^=avc1][height<=${VIDEO_MAX_HEIGHT * 2}]`,
+        `bv*[vcodec^=avc1]+ba`,
+        "bv*+ba",
+        "b",
+      ].join("/"),
+      "--merge-output-format",
+      "mp4",
+      "--remux-video",
+      "mp4",
+      "--postprocessor-args",
+      "ffmpeg:-movflags +faststart",
+      "--max-filesize",
+      VIDEO_MAX_FILESIZE,
+      "--output",
+      `${basePath}.%(ext)s`,
+      "--print",
+      ["after_move:%(uploader,channel)s", "%(description)s"].join(SEPARATOR),
+      url,
+    ]);
+  } catch (error) {
+    throw instagramError(error.details || "") ||
+      new Error("Não consegui baixar esse vídeo do Instagram.");
+  }
+
+  if (!fs.existsSync(outputPath)) {
+    throw new WarningError(
+      "O vídeo passou do limite de tamanho ou não pôde ser convertido.",
+    );
+  }
+
+  const [author = "", caption = ""] = (output || "").split(SEPARATOR);
+  const clean = (value) => (value && value !== "NA" ? value.trim() : "");
+
+  return { filePath: outputPath, author: clean(author), caption: clean(caption) };
 }

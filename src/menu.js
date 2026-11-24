@@ -98,6 +98,7 @@ export function menuMessage(groupJid) {
 
 ╭━━⪩ DOWNLOADS ⪨━━
 ▢
+▢ • ${prefix}insta (link do reels)
 ▢ • ${prefix}play (sua música aqui)
 ▢ • ${prefix}video (seu vídeo aqui)
 ▢
