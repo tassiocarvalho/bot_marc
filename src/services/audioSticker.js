@@ -62,17 +62,37 @@ async function hasAudioStream(inputPath) {
   return output.trim().length > 0;
 }
 
-/** Mesmos parâmetros do /sticker de vídeo, cortado nos primeiros segundos. */
-async function videoToAnimatedWebp(inputPath, outputPath) {
+/**
+ * Duração em segundos de um stream (`v:0`, `a:0`) ou do arquivo todo.
+ * Devolve 0 se o ffprobe não souber.
+ */
+async function probeDuration(inputPath, stream = null) {
+  const args = ["-v", "error"];
+
+  if (stream) {
+    args.push("-select_streams", stream, "-show_entries", "stream=duration");
+  } else {
+    args.push("-show_entries", "format=duration");
+  }
+
+  args.push("-of", "default=noprint_wrappers=1:nokey=1", inputPath);
+
+  const seconds = Number.parseFloat((await run("ffprobe", args)).trim());
+
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+}
+
+/** Mesmos parâmetros do /sticker de vídeo, cortado em `limit` segundos. */
+async function videoToAnimatedWebp(inputPath, outputPath, limit) {
   await run("ffmpeg", [
     "-nostdin",
     "-y",
     "-loglevel",
     "error",
-    "-t",
-    String(AUDIO_STICKER_MAX_SECONDS),
     "-i",
     inputPath,
+    "-t",
+    limit.toFixed(3),
     "-vf",
     "scale=350:350,fps=15",
     "-c:v",
@@ -95,16 +115,16 @@ async function videoToAnimatedWebp(inputPath, outputPath) {
 }
 
 /** Som em opus mono 48 kHz, o mesmo formato dos áudios do WhatsApp. */
-async function videoToOpus(inputPath, outputPath) {
+async function videoToOpus(inputPath, outputPath, limit) {
   await run("ffmpeg", [
     "-nostdin",
     "-y",
     "-loglevel",
     "error",
-    "-t",
-    String(AUDIO_STICKER_MAX_SECONDS),
     "-i",
     inputPath,
+    "-t",
+    limit.toFixed(3),
     "-vn",
     "-ac",
     "1",
@@ -148,10 +168,22 @@ export async function sendAudioSticker({
   let stickerPath = null;
 
   try {
+    // Vídeo cortado no editor do WhatsApp pode trazer o áudio inteiro do
+    // original. O som é cortado na duração real do vídeo para não sobrar
+    // áudio além da animação, que é o que o WhatsApp não consegue tocar.
+    const videoSeconds =
+      (await probeDuration(videoPath, "v:0").catch(() => 0)) ||
+      seconds ||
+      AUDIO_STICKER_MAX_SECONDS;
+    const limit = Math.min(videoSeconds, AUDIO_STICKER_MAX_SECONDS);
+
     await Promise.all([
-      videoToAnimatedWebp(videoPath, webpPath),
-      videoToOpus(videoPath, audioPath),
+      videoToAnimatedWebp(videoPath, webpPath, limit),
+      videoToOpus(videoPath, audioPath, limit),
     ]);
+
+    const audioSeconds =
+      (await probeDuration(audioPath).catch(() => 0)) || limit;
 
     stickerPath = await addStickerMetadata(
       await fs.promises.readFile(webpPath),
@@ -169,10 +201,7 @@ export async function sendAudioSticker({
         {
           audio: await fs.promises.readFile(audioPath),
           mimetype: AUDIO_MIMETYPE,
-          seconds: Math.max(
-            1,
-            Math.round(Math.min(seconds || 0, AUDIO_STICKER_MAX_SECONDS)),
-          ),
+          seconds: Math.max(1, Math.round(audioSeconds)),
         },
         upload,
       ),
