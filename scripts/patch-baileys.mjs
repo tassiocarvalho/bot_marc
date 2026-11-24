@@ -573,6 +573,16 @@ const normalizeNativeFlowButton = (button, index) => {
     if (hasOptionalProperty(message, 'sections')`
     );
 
+    // Figurinha com som chega embrulhada em audioStickerMessage (campo 134,
+    // ensinado ao proto por src/utils/audioStickerProto.js). Sem desembrulhar,
+    // o envio sai sem mediatype=sticker e o servidor descarta.
+    contents = replaceRequired(
+        contents,
+        `            message?.groupStatusMessageV2);`,
+        `            message?.groupStatusMessageV2 ||
+            message?.audioStickerMessage);`,
+        filePath
+    );
 
     write(filePath, contents);
 };

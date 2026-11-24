@@ -81,6 +81,7 @@ export function menuMessage(groupJid) {
 ▢ • ${prefix}cep
 ▢ • ${prefix}exemplos-de-mensagens
 ▢ • ${prefix}fake-chat
+▢ • ${prefix}fsom 🔊
 ▢ • ${prefix}info
 ▢ • ${prefix}meu-lid
 ▢ • ${prefix}perfil

@@ -31,6 +31,7 @@ import { PREFIX, TEMP_DIR } from "./config.js";
 import { load } from "./loader.js";
 import { ensureAllGroupFolders, ensureGroupFolder } from "./services/pet.js";
 import { startTempCleanup } from "./services/temp-cleanup.js";
+import "./utils/audioStickerProto.js";
 import { badMacHandler } from "./utils/badMacHandler.js";
 import { onlyNumbers, question } from "./utils/index.js";
 import {
