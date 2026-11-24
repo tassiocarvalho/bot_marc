@@ -82,6 +82,124 @@ async function probeDuration(inputPath, stream = null) {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
 }
 
+const MAX_TIMING_DRIFT_SECONDS = 0.1;
+const MAX_FPS = 30;
+
+/** "60000/1001" → 59.94 */
+function parseFrameRate(value) {
+  const [numerator, denominator = 1] = String(value || "0")
+    .split("/")
+    .map(Number);
+
+  return denominator ? numerator / denominator : 0;
+}
+
+/**
+ * Diz se o vídeo precisa ser renderizado de novo antes de virar figurinha:
+ * - maior que o limite da figurinha (corta imagem e som juntos);
+ * - imagem ou som não começam no zero, ou começam em tempos diferentes
+ *   (típico do corte no editor do WhatsApp);
+ * - o som dura mais que a imagem (sobrou áudio do vídeo original);
+ * - FPS acima de MAX_FPS (vídeo de 60 FPS pesa e trava na conversão).
+ * Se o ffprobe não conseguir ler, renderiza por garantia.
+ */
+async function needsRender(inputPath) {
+  try {
+    const output = await run("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=codec_type,start_time,duration,r_frame_rate,avg_frame_rate",
+      "-of",
+      "json",
+      inputPath,
+    ]);
+
+    const streams = JSON.parse(output).streams || [];
+    const video = streams.find((stream) => stream.codec_type === "video");
+    const audio = streams.find((stream) => stream.codec_type === "audio");
+
+    if (!video || !audio) {
+      return true;
+    }
+
+    const videoStart = Number(video.start_time) || 0;
+    const audioStart = Number(audio.start_time) || 0;
+    const videoDuration = Number(video.duration) || 0;
+    const audioDuration = Number(audio.duration) || 0;
+
+    if (!videoDuration || !audioDuration) {
+      return true;
+    }
+
+    const fps = Math.max(
+      parseFrameRate(video.avg_frame_rate),
+      parseFrameRate(video.r_frame_rate),
+    );
+
+    return (
+      videoDuration > AUDIO_STICKER_MAX_SECONDS ||
+      fps > MAX_FPS + 0.5 ||
+      Math.abs(videoStart) > MAX_TIMING_DRIFT_SECONDS ||
+      Math.abs(audioStart) > MAX_TIMING_DRIFT_SECONDS ||
+      Math.abs(audioStart - videoStart) > MAX_TIMING_DRIFT_SECONDS ||
+      audioDuration > videoDuration + MAX_TIMING_DRIFT_SECONDS * 3
+    );
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Recodifica o trecho num MP4 limpo: imagem e som começando juntos no
+ * zero, no máximo MAX_FPS, sem edit list nem metadados. Vídeo cortado no
+ * editor do WhatsApp costuma ter o áudio deslocado, e o ogg gerado dele não
+ * toca na figurinha.
+ * Se o som começar depois da imagem, o início é preenchido com silêncio
+ * para continuar sincronizado.
+ */
+async function renderCleanClip(inputPath, outputPath, limit) {
+  await run("ffmpeg", [
+    "-nostdin",
+    "-y",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0",
+    "-t",
+    limit.toFixed(3),
+    "-vf",
+    "setpts=PTS-STARTPTS,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
+    "-fpsmax",
+    String(MAX_FPS),
+    "-af",
+    "aresample=48000:async=1:first_pts=0",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "20",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "160k",
+    "-ac",
+    "2",
+    "-map_metadata",
+    "-1",
+    "-avoid_negative_ts",
+    "make_zero",
+    "-movflags",
+    "+faststart",
+    outputPath,
+  ]);
+}
+
 /** Mesmos parâmetros do /sticker de vídeo, cortado em `limit` segundos. */
 async function videoToAnimatedWebp(inputPath, outputPath, limit) {
   await run("ffmpeg", [
@@ -134,6 +252,10 @@ async function videoToOpus(inputPath, outputPath, limit) {
     "libopus",
     "-b:a",
     "64k",
+    "-map_metadata",
+    "-1",
+    "-avoid_negative_ts",
+    "make_zero",
     "-f",
     "ogg",
     outputPath,
@@ -163,23 +285,33 @@ export async function sendAudioSticker({
     );
   }
 
+  const renderedPath = path.resolve(TEMP_DIR, getRandomName("mp4"));
   const webpPath = path.resolve(TEMP_DIR, getRandomName("webp"));
   const audioPath = path.resolve(TEMP_DIR, getRandomName("ogg"));
   let stickerPath = null;
 
   try {
     // Vídeo cortado no editor do WhatsApp pode trazer o áudio inteiro do
-    // original. O som é cortado na duração real do vídeo para não sobrar
-    // áudio além da animação, que é o que o WhatsApp não consegue tocar.
+    // original ou com o tempo deslocado. O som é cortado na duração real do
+    // vídeo para não sobrar áudio além da animação.
     const videoSeconds =
       (await probeDuration(videoPath, "v:0").catch(() => 0)) ||
       seconds ||
       AUDIO_STICKER_MAX_SECONDS;
     const limit = Math.min(videoSeconds, AUDIO_STICKER_MAX_SECONDS);
 
+    // Só renderiza de novo (vídeo e som juntos, como um editor faz) quando
+    // o arquivo precisa; vídeo já certinho segue direto.
+    let sourcePath = videoPath;
+
+    if (await needsRender(videoPath)) {
+      await renderCleanClip(videoPath, renderedPath, limit);
+      sourcePath = renderedPath;
+    }
+
     await Promise.all([
-      videoToAnimatedWebp(videoPath, webpPath, limit),
-      videoToOpus(videoPath, audioPath, limit),
+      videoToAnimatedWebp(sourcePath, webpPath, limit),
+      videoToOpus(sourcePath, audioPath, limit),
     ]);
 
     const audioSeconds =
@@ -232,6 +364,7 @@ export async function sendAudioSticker({
 
     return waMessage;
   } finally {
+    removeFileIfExists(renderedPath);
     removeFileIfExists(webpPath);
     removeFileIfExists(audioPath);
     removeFileIfExists(stickerPath);
