@@ -446,31 +446,127 @@ function instagramError(details) {
   return null;
 }
 
+const WHATSAPP_MAX_SIDE = 1280;
+
+function runFfmpegTool(command, args) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      { timeout: TIMEOUT_IN_MILLISECONDS, maxBuffer: MAX_BUFFER_IN_BYTES, windowsHide: true },
+      (error, stdout, stderr) => {
+        if (error) {
+          errorLog(`${command} falhou: ${(stderr || error.message || "").trim()}`);
+          reject(error);
+          return;
+        }
+
+        resolve(stdout);
+      },
+    );
+  });
+}
+
 /**
- * Baixa o vídeo de um reel/post do Instagram em mp4 na pasta temporária.
- * Em carrossel, pega o primeiro vídeo.
+ * Diz se o mp4 já toca no WhatsApp: H.264 8 bits (yuv420p), áudio AAC (ou
+ * sem áudio) e no máximo WHATSAPP_MAX_SIDE de lado. Reels costumam vir em
+ * VP9, AV1 ou HEVC, que o WhatsApp recusa com "algo errado com o arquivo".
+ */
+async function isWhatsAppFriendly(filePath) {
+  try {
+    const output = await runFfmpegTool("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream=codec_type,codec_name,profile,pix_fmt,width,height",
+      "-of",
+      "json",
+      filePath,
+    ]);
+
+    const streams = JSON.parse(output).streams || [];
+    const video = streams.find((stream) => stream.codec_type === "video");
+    const audio = streams.find((stream) => stream.codec_type === "audio");
+
+    if (!video) {
+      return false;
+    }
+
+    return (
+      video.codec_name === "h264" &&
+      video.pix_fmt === "yuv420p" &&
+      /baseline|main|^high$/i.test(video.profile || "") &&
+      Math.max(video.width || 0, video.height || 0) <= WHATSAPP_MAX_SIDE &&
+      (!audio || audio.codec_name === "aac")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Converte para H.264/AAC num mp4 que o WhatsApp aceita. */
+async function convertForWhatsApp(inputPath, outputPath) {
+  await runFfmpegTool("ffmpeg", [
+    "-nostdin",
+    "-y",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-vf",
+    `scale=w='min(${WHATSAPP_MAX_SIDE},iw)':h='min(${WHATSAPP_MAX_SIDE},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p`,
+    "-fpsmax",
+    "30",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "26",
+    "-profile:v",
+    "main",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    "-ac",
+    "2",
+    "-movflags",
+    "+faststart",
+    outputPath,
+  ]);
+}
+
+/**
+ * Baixa o vídeo de um reel/post do Instagram em mp4 na pasta temporária,
+ * já num formato que o WhatsApp toca. Em carrossel, pega o primeiro vídeo.
  *
  * @param {string} url link já validado por parseInstagramUrl
- * @returns {Promise<{filePath: string, author: string, caption: string}>}
+ * @returns {Promise<string>} caminho do mp4
  */
 export async function downloadFromInstagram(url) {
   const basePath = path.resolve(TEMP_DIR, getRandomName());
-  const outputPath = `${basePath}.mp4`;
-
-  let output;
+  const downloadedPath = `${basePath}.mp4`;
+  const convertedPath = `${basePath}-wa.mp4`;
 
   try {
-    output = await runYtDlp([
+    await runYtDlp([
       ...buildInstagramAuthArgs(),
       "--playlist-items",
       "1",
       "--force-ipv4",
       "--no-warnings",
       "--no-progress",
+      "--quiet",
       "--format",
       [
-        `b[vcodec^=avc1][height<=${VIDEO_MAX_HEIGHT * 2}]`,
-        `bv*[vcodec^=avc1]+ba`,
+        `bv*[vcodec^=avc1][height<=${WHATSAPP_MAX_SIDE}]+ba`,
+        `b[vcodec^=avc1][height<=${WHATSAPP_MAX_SIDE}]`,
+        "b[ext=mp4]",
         "bv*+ba",
         "b",
       ].join("/"),
@@ -478,14 +574,10 @@ export async function downloadFromInstagram(url) {
       "mp4",
       "--remux-video",
       "mp4",
-      "--postprocessor-args",
-      "ffmpeg:-movflags +faststart",
       "--max-filesize",
       VIDEO_MAX_FILESIZE,
       "--output",
       `${basePath}.%(ext)s`,
-      "--print",
-      ["after_move:%(uploader,channel)s", "%(description)s"].join(SEPARATOR),
       url,
     ]);
   } catch (error) {
@@ -493,14 +585,24 @@ export async function downloadFromInstagram(url) {
       new Error("Não consegui baixar esse vídeo do Instagram.");
   }
 
-  if (!fs.existsSync(outputPath)) {
+  if (!fs.existsSync(downloadedPath)) {
     throw new WarningError(
       "O vídeo passou do limite de tamanho ou não pôde ser convertido.",
     );
   }
 
-  const [author = "", caption = ""] = (output || "").split(SEPARATOR);
-  const clean = (value) => (value && value !== "NA" ? value.trim() : "");
+  if (await isWhatsAppFriendly(downloadedPath)) {
+    return downloadedPath;
+  }
 
-  return { filePath: outputPath, author: clean(author), caption: clean(caption) };
+  try {
+    await convertForWhatsApp(downloadedPath, convertedPath);
+  } catch {
+    fs.rmSync(convertedPath, { force: true });
+    throw new Error("Baixei o vídeo, mas não consegui converter para o WhatsApp.");
+  } finally {
+    fs.rmSync(downloadedPath, { force: true });
+  }
+
+  return convertedPath;
 }

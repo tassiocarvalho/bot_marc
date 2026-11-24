@@ -13,14 +13,6 @@ import {
 } from "../../../services/ytdlp.js";
 import { removeFileIfExists } from "../../../utils/index.js";
 
-const MAX_CAPTION_LENGTH = 300;
-
-function shorten(text) {
-  return text.length > MAX_CAPTION_LENGTH
-    ? `${text.slice(0, MAX_CAPTION_LENGTH).trimEnd()}…`
-    : text;
-}
-
 export default {
   name: "instagram",
   description: "Baixo vídeos e reels do Instagram",
@@ -55,23 +47,11 @@ export default {
     let filePath = null;
 
     try {
-      const data = await downloadFromInstagram(url);
-
-      filePath = data.filePath;
-
-      const lines = [];
-
-      if (data.author) {
-        lines.push(`*Autor*: ${data.author}`);
-      }
-
-      if (data.caption) {
-        lines.push(`*Legenda*: ${shorten(data.caption)}`);
-      }
+      filePath = await downloadFromInstagram(url);
 
       await sendSuccessReact();
 
-      await sendVideoFromFile(filePath, lines.join("\n\n"));
+      await sendVideoFromFile(filePath);
     } catch (error) {
       if (error instanceof WarningError) {
         throw error;
