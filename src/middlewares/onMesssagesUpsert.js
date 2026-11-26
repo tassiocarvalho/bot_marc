@@ -28,6 +28,38 @@ import { onGroupParticipantsUpdate } from "./onGroupParticipantsUpdate.js";
 
 const privadosBloqueados = new Set();
 
+// O WhatsApp/baileys de vez em quando entrega a mesma mensagem duas vezes
+// (reconexão no meio de um comando demorado, retry de descriptografia,
+// "notify" seguido de "append"). Sem isso o comando roda de novo e sai
+// figurinha/resposta duplicada. Guarda o id por alguns minutos.
+const DUPLICATE_WINDOW_MS = 10 * 60_000;
+const mensagensVistas = new Map();
+
+function isDuplicateMessage(webMessage) {
+  const { id, remoteJid } = webMessage?.key || {};
+
+  // Só conta mensagem com conteúdo: a versão "ainda criptografada" chega sem
+  // message e não pode bloquear a versão boa que vem depois.
+  if (!id || !webMessage?.message) {
+    return false;
+  }
+
+  const chave = `${remoteJid}|${id}`;
+  const agora = Date.now();
+
+  for (const [vista, quando] of mensagensVistas) {
+    if (agora - quando < DUPLICATE_WINDOW_MS) break;
+    mensagensVistas.delete(vista);
+  }
+
+  if (mensagensVistas.has(chave)) {
+    return true;
+  }
+
+  mensagensVistas.set(chave, agora);
+  return false;
+}
+
 export async function onMessagesUpsert({ socket, messages, startProcess }) {
   if (!messages.length) {
     return;
@@ -68,6 +100,13 @@ export async function onMessagesUpsert({ socket, messages, startProcess }) {
           );
         }
 
+        continue;
+      }
+
+      if (isDuplicateMessage(webMessage)) {
+        infoLog(
+          `Mensagem repetida ignorada: ${webMessage.key.id} em ${remoteJid}.`,
+        );
         continue;
       }
 
